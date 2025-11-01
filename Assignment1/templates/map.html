@@ -58,7 +58,7 @@
             <a class="navbar-brand" href="#">
                 <i class="fas fa-map"></i> National Transport Network
             </a>
-            <span class="navbar-text text-light">Real-time Vehicle & Stop Tracking</span>
+            <span class="navbar-text text-light">Stop & Route Tracking</span>
         </div>
     </nav>
 
@@ -90,7 +90,6 @@
                                 <label>Query Type</label>
                                 <select id="radiusType" class="form-select form-select-sm">
                                     <option value="stops">Stops</option>
-                                    <option value="vehicles">Vehicles</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -116,7 +115,6 @@
                                 <label>Query Type</label>
                                 <select id="boundsType" class="form-select form-select-sm">
                                     <option value="stops">Stops</option>
-                                    <option value="vehicles">Vehicles</option>
                                 </select>
                             </div>
                             <div class="form-row">
@@ -217,10 +215,6 @@
                     <!-- Statistics -->
                     <h5 class="panel-title"><i class="fas fa-chart-bar"></i> Statistics</h5>
                     <div class="stat-item">
-                        <div class="stat-label">Active Vehicles</div>
-                        <div class="stat-value" id="vehicleCount">0</div>
-                    </div>
-                    <div class="stat-item">
                         <div class="stat-label">Total Stops</div>
                         <div class="stat-value" id="stopCount">0</div>
                     </div>
@@ -228,25 +222,54 @@
                         <div class="stat-label">Routes</div>
                         <div class="stat-value" id="routeCount">0</div>
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Avg Speed</div>
-                        <div class="stat-value" id="avgSpeed">-- km/h</div>
-                    </div>
 
                     <hr>
 
                     <!-- Layer Toggles -->
                     <h6 class="panel-title"><i class="fas fa-layer-group"></i> Layers</h6>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="layerVehicles" checked onchange="toggleLayer('vehicles')">
-                        <label class="form-check-label" for="layerVehicles">
-                            Vehicles
-                        </label>
-                    </div>
+                    
+                    <!-- Stops Layer -->
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="layerStops" checked onchange="toggleLayer('stops')">
                         <label class="form-check-label" for="layerStops">
-                            Stops
+                            <i class="fas fa-map-pin" style="color: #27ae60;"></i> Stops
+                        </label>
+                    </div>
+                    
+                    <!-- Shapes Section -->
+                    <div class="mt-2 mb-2">
+                        <small class="text-muted"><strong>Service Types:</strong></small>
+                    </div>
+                    
+                    <!-- Bus Shapes -->
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="layerShapesBus" checked onchange="toggleLayer('shapes-bus')">
+                        <label class="form-check-label" for="layerShapesBus">
+                            <i class="fas fa-bus" style="color: #FFDD00;"></i> Bus
+                        </label>
+                    </div>
+                    
+                    <!-- Rail Shapes -->
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="layerShapesRail" checked onchange="toggleLayer('shapes-rail')">
+                        <label class="form-check-label" for="layerShapesRail">
+                            <i class="fas fa-train" style="color: #055305ff;"></i> Rail
+                        </label>
+                    </div>
+                    
+                    <!-- Tram Shapes -->
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="layerShapesTram" checked onchange="toggleLayer('shapes-tram')">
+                        <label class="form-check-label" for="layerShapesTram">
+                            <i class="fas fa-subway" style="color: #0099FF;"></i> Tram
+                        </label>
+                    </div>
+                    
+                    <!-- Other Shapes -->
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="layerShapesOther" checked onchange="toggleLayer('shapes-other')">
+                        <label class="form-check-label" for="layerShapesOther">
+                            <i class="fas fa-route" style="color: #95a5a6;"></i> Other
                         </label>
                     </div>
 
@@ -267,10 +290,16 @@
                     <!-- Map Legend -->
                     <h6 class="panel-title"><i class="fas fa-book"></i> Legend</h6>
                     <div class="legend-item">
-                        <i class="fas fa-bus legend-icon"></i> Vehicle
+                        <i class="fas fa-map-pin" style="color: #27ae60;"></i> Stop
                     </div>
                     <div class="legend-item">
-                        <i class="fas fa-map-pin legend-icon"></i> Stop
+                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #FFDD00; border: 1px solid #000;"></div> Bus Route
+                    </div>
+                    <div class="legend-item">
+                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #055305ff; border: 1px solid #000;"></div> Rail Route
+                    </div>
+                    <div class="legend-item">
+                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #0099FF; border: 1px solid #000;"></div> Tram Route
                     </div>
                     <div class="legend-item">
                         <i class="fas fa-star legend-icon"></i> Query Result

@@ -47,7 +47,6 @@ const tileLayers = {
 const featureLayers = {
     'Stops': null,
     'Routes': null,
-    'Vehicles': null,
     'Query Results': null
 };
 
@@ -67,11 +66,14 @@ function initializeMapWithLayers(map) {
         'CartoDB Voyager': tileLayers['CartoDB Voyager']
     };
     
+    // Create organized overlay layers with shape types separated
     const overlayLayers = {
         'Stops': L.featureGroup(),
         'Routes': L.featureGroup(),
-        'Shapes': L.featureGroup(),
-        'Vehicles': L.featureGroup(),
+        'Shapes - Bus': L.featureGroup(),
+        'Shapes - Rail': L.featureGroup(),
+        'Shapes - Tram': L.featureGroup(),
+        'Shapes - Other': L.featureGroup(),
         'Query Results': L.featureGroup()
     };
     
@@ -80,8 +82,10 @@ function initializeMapWithLayers(map) {
     
     // Add overlays to map by default
     overlayLayers['Stops'].addTo(map);
-    overlayLayers['Shapes'].addTo(map);
-    overlayLayers['Vehicles'].addTo(map);
+    overlayLayers['Shapes - Bus'].addTo(map);
+    overlayLayers['Shapes - Rail'].addTo(map);
+    overlayLayers['Shapes - Tram'].addTo(map);
+    overlayLayers['Shapes - Other'].addTo(map);
     overlayLayers['Query Results'].addTo(map);
     
     console.log('Feature layers added to map');
@@ -156,7 +160,7 @@ function addClusterLayer(map, data) {
 function setVisualizationMode(map, mode, data) {
     switch(mode) {
         case 'markers':
-            // Individual markers - already handled by loadStops/loadVehicles
+            // Individual markers - already handled by loadStops
             break;
         case 'heatmap':
             // Add heatmap visualization

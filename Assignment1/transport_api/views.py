@@ -219,6 +219,36 @@ class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
             'results': features
         })
 
+    @action(detail=False, methods=['get'])
+    def trips(self, request):
+        """Get trips for a specific shape. Params: shape_id"""
+        shape_id = request.query_params.get('shape_id')
+        
+        if not shape_id:
+            return Response({'error': 'shape_id required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get all unique routes that use this shape
+        trips = Trip.objects.filter(shape_id=shape_id).select_related('route').values_list(
+            'route_id', 'route__route_short_name', 'route__route_long_name', 'route__route_type'
+        )
+        
+        # Deduplicate in Python
+        seen = set()
+        data = []
+        for route_id, route_short_name, route_long_name, route_type in trips:
+            key = (route_id, route_short_name, route_long_name, route_type)
+            if key not in seen:
+                seen.add(key)
+                data.append({
+                    'route_id': route_id,
+                    'route_short_name': route_short_name,
+                    'route_long_name': route_long_name,
+                    'route_type': route_type,
+                    'shape_id': shape_id,
+                })
+        
+        return Response(data)
+
 
 class VehicleViewSet(viewsets.ModelViewSet):
     """ViewSet for real-time vehicle tracking with spatial queries."""

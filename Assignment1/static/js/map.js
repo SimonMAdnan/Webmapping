@@ -3,16 +3,14 @@
  */
 
 let map;
-let vehicleMarkers = L.featureGroup();
 let stopMarkers = L.featureGroup();
 let routeLayer = L.featureGroup();
 let queryLayer = L.featureGroup();
 let autoRefreshInterval = null;
 let layerControl = null;
 
-// Track loaded stops and vehicles to avoid clearing
+// Track loaded stops to avoid clearing
 let loadedStops = new Set();
-let loadedVehicles = new Set();
 
 // Cache settings
 const CACHE_KEY_STOPS = 'transport_stops_cache';
@@ -53,6 +51,42 @@ function cacheStops(stops) {
     } catch (e) {
         console.error('Error caching stops:', e);
     }
+}
+
+// Route type mapping (GTFS standard)
+const ROUTE_TYPES = {
+    0: 'Tram',
+    1: 'Subway',
+    2: 'Rail',
+    3: 'Bus',
+    4: 'Ferry',
+    5: 'Cable Car',
+    6: 'Gondola',
+    7: 'Funicular',
+    11: 'Trolleybus',
+    12: 'Monorail'
+};
+
+// Route type colors
+const ROUTE_TYPE_COLORS = {
+    0: '#0099FF',  // Tram - Blue
+    1: '#6B4C9A',  // Subway - Purple
+    2: '#055305ff',  // Rail - Green
+    3: '#FFDD00',  // Bus - Yellow
+    4: '#FF6B6B',  // Ferry - Red
+    5: '#FF9500',  // Cable Car - Orange
+    6: '#FF69B4',  // Gondola - Pink
+    7: '#8B4513',  // Funicular - Brown
+    11: '#FF1493', // Trolleybus - Deep Pink
+    12: '#00CED1'  // Monorail - Dark Turquoise
+};
+
+function getRouteTypeName(routeType) {
+    return ROUTE_TYPES[routeType] || `Type ${routeType}`;
+}
+
+function getRouteTypeColor(routeType) {
+    return ROUTE_TYPE_COLORS[routeType] || '#3498db';
 }
 
 // IndexedDB for large data caching
@@ -153,29 +187,27 @@ function initMap() {
     console.log('Layers initialized', { baseLayers, overlayLayers });
     
     // Store references to overlay layers for data updates
+    window.featureLayers = overlayLayers;  // Store all feature layers
     window.stopMarkersLayer = overlayLayers['Stops'];
-    window.vehicleMarkersLayer = overlayLayers['Vehicles'];
-    window.shapesLayer = overlayLayers['Shapes'];
+    window.shapesLayer = overlayLayers;  // Store all shape layers for reference
     window.queryLayer = overlayLayers['Query Results'];
     
     console.log('Overlay layers assigned:', {
         stopMarkersLayer: window.stopMarkersLayer,
-        vehicleMarkersLayer: window.vehicleMarkersLayer,
         shapesLayer: window.shapesLayer,
-        queryLayer: window.queryLayer
+        queryLayer: window.queryLayer,
+        featureLayers: window.featureLayers
     });
 
     // Add map event listeners
     map.on('moveend', function() {
         console.log('Map moved');
         updateMapBounds();
-        loadVehicles();
         loadStops();
     });
 
     // Initial data load
     console.log('Starting initial data load');
-    loadVehicles();
     loadStops();
     loadShapesAndDisplay();
     updateStatistics();
@@ -183,65 +215,6 @@ function initMap() {
     console.log('Map initialized with multiple tile layers');
 }
 
-
-async function loadVehicles() {
-    try {
-        console.log('loadVehicles called');
-        const bounds = map.getBounds();
-        console.log('Map bounds:', bounds);
-        const url = `/api/vehicles/in_bounds/?min_lat=${bounds.getSouth()}&max_lat=${bounds.getNorth()}&min_lon=${bounds.getWest()}&max_lon=${bounds.getEast()}`;
-        
-        console.log('Loading vehicles from:', url);
-        const response = await fetch(url);
-        const data = await response.json();
-
-        console.log('Vehicles response:', data);
-        
-        if (!data.results) {
-            console.warn('No results in response');
-            return;
-        }
-
-        // Handle both array and FeatureCollection formats
-        let vehicles = data.results;
-        if (data.results.features && Array.isArray(data.results.features)) {
-            // GeoFeatureModelSerializer returns FeatureCollection with features array
-            vehicles = data.results.features;
-            console.log('Using features array from FeatureCollection');
-        } else if (!Array.isArray(data.results)) {
-            console.warn('Results is not an array and no features found', typeof data.results);
-            return;
-        }
-
-        // Use the overlay layer or fallback to vehicleMarkers
-        const vehiclesLayer = window.vehicleMarkersLayer || vehicleMarkers;
-        console.log('Using vehiclesLayer:', vehiclesLayer);
-        // Don't clear - only add new vehicles
-        
-        if (vehicles.length > 0) {
-            console.log('Adding', vehicles.length, 'vehicles (without clearing existing)');
-            vehicles.forEach((vehicle, idx) => {
-                try {
-                    const vehicleKey = vehicle.properties?.vehicle_id || vehicle.id;
-                    if (!loadedVehicles.has(vehicleKey)) {
-                        const marker = createVehicleMarker(vehicle);
-                        vehiclesLayer.addLayer(marker);
-                        loadedVehicles.add(vehicleKey);
-                    }
-                } catch (e) {
-                    console.error('Error creating marker for vehicle', idx, ':', e);
-                }
-            });
-            console.log('Vehicles loaded successfully. Total unique vehicles:', loadedVehicles.size);
-        } else {
-            console.log('No vehicles in response');
-        }
-
-        updateStatistics();
-    } catch (error) {
-        console.error('Error loading vehicles:', error);
-    }
-}
 
 async function loadStops() {
     try {
@@ -337,32 +310,6 @@ async function loadStops() {
     }
 }
 
-function createVehicleMarker(vehicle) {
-    const coords = vehicle.geometry.coordinates;
-    const props = vehicle.properties || vehicle;
-    
-    const marker = L.circleMarker([coords[1], coords[0]], {
-        radius: 6,
-        fillColor: '#f39c12',
-        color: '#fff',
-        weight: 2,
-        opacity: 1,
-        fillOpacity: 0.8
-    });
-
-    const popupContent = `
-        <div class="popup-content">
-            <strong>${props.vehicle_id}</strong><br>
-            Route: ${props.route_short_name || 'N/A'}<br>
-            Speed: ${props.speed ? parseFloat(props.speed).toFixed(1) : 'N/A'} km/h<br>
-            Status: <span class="badge badge-${props.status}">${props.status}</span><br>
-            <small class="text-muted">${new Date(props.timestamp).toLocaleTimeString()}</small>
-        </div>
-    `;
-    marker.bindPopup(popupContent);
-    return marker;
-}
-
 function createStopMarker(stop) {
     try {
         const coords = stop.geometry.coordinates;
@@ -442,28 +389,53 @@ function updateMapBounds() {
 
 async function updateStatistics() {
     try {
-        const vehiclesResp = await fetch('/api/vehicles/?limit=1');
         const stopsResp = await fetch('/api/stops/?limit=1');
         const routesResp = await fetch('/api/routes/?limit=1');
 
-        const vehiclesData = await vehiclesResp.json();
         const stopsData = await stopsResp.json();
         const routesData = await routesResp.json();
 
-        document.getElementById('vehicleCount').textContent = vehiclesData.count || 0;
         document.getElementById('stopCount').textContent = stopsData.count || 0;
         document.getElementById('routeCount').textContent = routesData.count || 0;
-
-        if (vehiclesData.results && vehiclesData.results.length > 0) {
-            const speeds = vehiclesData.results
-                .map(v => v.properties ? v.properties.speed : v.speed)
-                .filter(s => s)
-                .map(s => parseFloat(s));
-            const avgSpeed = speeds.length > 0 ? (speeds.reduce((a, b) => a + b, 0) / speeds.length).toFixed(1) : '--';
-            document.getElementById('avgSpeed').textContent = avgSpeed + ' km/h';
-        }
     } catch (error) {
         console.error('Error updating statistics:', error);
+    }
+}
+
+async function loadShapeBusNumbers(shapeId) {
+    try {
+        console.log('Loading bus numbers for shape:', shapeId);
+        // Fetch trips that use this shape and get unique route short names
+        const response = await fetch(`/api/shapes/trips/?shape_id=${shapeId}`);
+        
+        if (!response.ok) {
+            console.error('Failed to load trips for shape:', response.status);
+            return [];
+        }
+        
+        const data = await response.json();
+        const busNumbers = new Set();
+        
+        if (Array.isArray(data)) {
+            data.forEach(trip => {
+                if (trip.route_short_name) {
+                    busNumbers.add(trip.route_short_name);
+                }
+            });
+        }
+        
+        return Array.from(busNumbers).sort((a, b) => {
+            // Sort numerically if both are numbers, otherwise alphabetically
+            const aNum = parseInt(a);
+            const bNum = parseInt(b);
+            if (!isNaN(aNum) && !isNaN(bNum)) {
+                return aNum - bNum;
+            }
+            return a.localeCompare(b);
+        });
+    } catch (error) {
+        console.error('Error loading shape bus numbers:', error);
+        return [];
     }
 }
 
@@ -471,6 +443,20 @@ async function loadShapesAndDisplay() {
     try {
         console.log('Loading and displaying route shapes...');
         const shapeLayer = window.shapesLayer;
+        
+        // Create reference to service type layers
+        const serviceTypeLayers = {
+            '0': window.featureLayers['Shapes - Tram'],      // Tram
+            '1': window.featureLayers['Shapes - Rail'],      // Subway
+            '2': window.featureLayers['Shapes - Rail'],      // Rail
+            '3': window.featureLayers['Shapes - Bus'],       // Bus
+            '4': window.featureLayers['Shapes - Other'],     // Ferry
+            '5': window.featureLayers['Shapes - Other'],     // Cable Car
+            '6': window.featureLayers['Shapes - Other'],     // Gondola
+            '7': window.featureLayers['Shapes - Other'],     // Funicular
+            '11': window.featureLayers['Shapes - Other'],    // Trolleybus
+            '12': window.featureLayers['Shapes - Other']     // Monorail
+        };
         const spinner = document.getElementById('loading-spinner');
         const spinnerText = document.getElementById('loading-text');
         
@@ -566,24 +552,57 @@ async function loadShapesAndDisplay() {
                     
                     const latlngs = feature.geometry.coordinates.map(coord => [coord[1], coord[0]]);
                     
+                    const props = feature.properties;
+                    const routeColor = getRouteTypeColor(props.route_type);
+                    
                     const polyline = L.polyline(latlngs, {
-                        color: '#3498db',
+                        color: routeColor,
                         weight: 3,
-                        opacity: 0.6,
+                        opacity: 0.7,
                         dashArray: '5, 5'
                     });
                     
-                    const props = feature.properties;
+                    // Add bus number as tooltip
+                    polyline.bindTooltip(`Bus ${props.route_short_name}`, {
+                        permanent: false,
+                        direction: 'top',
+                        offset: [0, -10]
+                    });
+                    
                     const popupContent = `
-                        <div class="popup-content">
-                            <strong>Route ${props.route_short_name || 'Unknown'}</strong><br>
+                        <div class="popup-content" style="min-width: 300px; max-height: 500px; overflow-y: auto;">
+                            <strong>Route ${props.route_short_name}</strong><br>
                             ${props.route_long_name || 'N/A'}<br>
-                            Type: ${props.route_type || 'N/A'}<br>
-                            Shape ID: ${props.shape_id}
+                            Service: <strong>${getRouteTypeName(props.route_type)}</strong><br>
+                            <hr>
+                            <small style="color: #666;">Loading bus numbers...</small>
+                            <div id="bus-numbers-${props.shape_id}" style="margin-top: 10px; font-size: 12px;"></div>
                         </div>
                     `;
                     polyline.bindPopup(popupContent);
-                    shapeLayer.addLayer(polyline);
+                    
+                    // Load bus numbers when popup opens
+                    polyline.on('popupopen', async function() {
+                        const busNumbersContainer = document.getElementById(`bus-numbers-${props.shape_id}`);
+                        if (busNumbersContainer) {
+                            const busNumbers = await loadShapeBusNumbers(props.shape_id);
+                            
+                            if (busNumbers && busNumbers.length > 0) {
+                                let html = '<strong>Bus Routes:</strong><br>';
+                                busNumbers.forEach(busNum => {
+                                    html += `<span style="display: inline-block; background: #e0e0e0; padding: 4px 8px; margin: 2px; border-radius: 3px; font-weight: bold;">${busNum}</span> `;
+                                });
+                                busNumbersContainer.innerHTML = html;
+                            } else {
+                                busNumbersContainer.innerHTML = '<small style="color: #999;">No bus numbers found</small>';
+                            }
+                        }
+                    });
+                    
+                    // Add to appropriate service type layer
+                    const routeTypeStr = String(props.route_type);
+                    const targetLayer = serviceTypeLayers[routeTypeStr] || window.featureLayers['Shapes - Other'];
+                    targetLayer.addLayer(polyline);
                     count++;
                 } catch (err) {
                     console.error(`Error processing shape ${idx}:`, err);
@@ -672,18 +691,39 @@ async function loadStopSchedules(stopId) {
 
 function toggleLayer(layerName) {
     switch(layerName) {
-        case 'vehicles':
-            if (document.getElementById('layerVehicles').checked) {
-                vehicleMarkers.addTo(map);
-            } else {
-                map.removeLayer(vehicleMarkers);
-            }
-            break;
         case 'stops':
             if (document.getElementById('layerStops').checked) {
-                stopMarkers.addTo(map);
+                window.featureLayers['Stops'].addTo(map);
             } else {
-                map.removeLayer(stopMarkers);
+                map.removeLayer(window.featureLayers['Stops']);
+            }
+            break;
+        case 'shapes-bus':
+            if (document.getElementById('layerShapesBus').checked) {
+                window.featureLayers['Shapes - Bus'].addTo(map);
+            } else {
+                map.removeLayer(window.featureLayers['Shapes - Bus']);
+            }
+            break;
+        case 'shapes-rail':
+            if (document.getElementById('layerShapesRail').checked) {
+                window.featureLayers['Shapes - Rail'].addTo(map);
+            } else {
+                map.removeLayer(window.featureLayers['Shapes - Rail']);
+            }
+            break;
+        case 'shapes-tram':
+            if (document.getElementById('layerShapesTram').checked) {
+                window.featureLayers['Shapes - Tram'].addTo(map);
+            } else {
+                map.removeLayer(window.featureLayers['Shapes - Tram']);
+            }
+            break;
+        case 'shapes-other':
+            if (document.getElementById('layerShapesOther').checked) {
+                window.featureLayers['Shapes - Other'].addTo(map);
+            } else {
+                map.removeLayer(window.featureLayers['Shapes - Other']);
             }
             break;
     }
@@ -701,7 +741,6 @@ function toggleAutoRefresh() {
         button.classList.add('btn-secondary');
     } else {
         autoRefreshInterval = setInterval(() => {
-            loadVehicles();
             loadStops();
             updateStatistics();
         }, interval);
