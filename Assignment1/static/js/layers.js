@@ -70,6 +70,7 @@ function initializeMapWithLayers(map) {
     const overlayLayers = {
         'Stops': L.featureGroup(),
         'Routes': L.featureGroup(),
+        'Shapes': L.featureGroup(),
         'Vehicles': L.featureGroup(),
         'Query Results': L.featureGroup()
     };
@@ -79,6 +80,7 @@ function initializeMapWithLayers(map) {
     
     // Add overlays to map by default
     overlayLayers['Stops'].addTo(map);
+    overlayLayers['Shapes'].addTo(map);
     overlayLayers['Vehicles'].addTo(map);
     overlayLayers['Query Results'].addTo(map);
     

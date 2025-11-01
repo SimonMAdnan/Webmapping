@@ -14,8 +14,10 @@ from django.shortcuts import render
 from transport_api.models import Vehicle, Route, Stop, SpatialQuery
 from transport_api.serializers import (
     VehicleSerializer, RouteSerializer, StopSerializer, 
-    SpatialQuerySerializer, SpatialSearchSerializer
+    SpatialQuerySerializer, SpatialSearchSerializer,
+    ShapeSerializer, TripScheduleSerializer
 )
+from transport_api.models import Trip, StopTime, Shape
 
 
 class MapView(TemplateView):
@@ -124,6 +126,97 @@ class StopViewSet(viewsets.ModelViewSet):
             'nearby_count': nearby.count(),
             'distance_km': distance_km,
             'results': serializer.data
+        })
+
+    @action(detail=True, methods=['get'])
+    def schedules(self, request, pk=None):
+        """Get trip schedules for a specific stop."""
+        stop = self.get_object()
+        
+        # Get all stop times for this stop, ordered by arrival time
+        stop_times = StopTime.objects.filter(stop=stop).select_related(
+            'trip', 'trip__route'
+        ).order_by('arrival_time')
+        
+        schedules = []
+        for st in stop_times:
+            schedules.append({
+                'trip_id': st.trip.trip_id,
+                'route_id': st.trip.route.route_id,
+                'route_short_name': st.trip.route.route_short_name,
+                'route_long_name': st.trip.route.route_long_name,
+                'trip_headsign': st.trip.trip_headsign or '',
+                'arrival_time': st.arrival_time,
+                'departure_time': st.departure_time,
+                'stop_sequence': st.stop_sequence,
+            })
+        
+        return Response({
+            'stop_id': stop.stop_id,
+            'stop_name': stop.stop_name,
+            'schedule_count': len(schedules),
+            'schedules': schedules
+        })
+
+
+class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for route shapes as GeoJSON LineStrings."""
+    queryset = Shape.objects.all()
+    pagination_class = None  # No pagination for shapes
+    
+    def list(self, request, *args, **kwargs):
+        """Return all shapes as GeoJSON Features."""
+        # Get limit from query params
+        limit = request.query_params.get('limit', None)
+        offset = int(request.query_params.get('offset', 0))
+        
+        all_shapes = self.get_queryset()
+        
+        if limit:
+            limit = int(limit)
+            shapes = all_shapes[offset:offset + limit]
+        else:
+            shapes = all_shapes[offset:]
+        
+        # Preload all trips with routes to avoid N+1 queries
+        shape_ids = [s.shape_id for s in shapes]
+        trips_by_shape = {}
+        for trip in Trip.objects.filter(shape_id__in=shape_ids).select_related('route').only(
+            'shape_id', 'route__route_id', 'route__route_short_name', 'route__route_long_name', 'route__route_type'
+        ):
+            if trip.shape_id not in trips_by_shape:
+                trips_by_shape[trip.shape_id] = trip
+        
+        features = []
+        
+        for shape in shapes:
+            if shape.geometry and len(shape.geometry.coords) > 0:
+                # Get route info from preloaded trips
+                trip = trips_by_shape.get(shape.shape_id)
+                route = trip.route if trip else None
+                
+                coords = list(shape.geometry.coords)
+                feature = {
+                    'type': 'Feature',
+                    'geometry': {
+                        'type': 'LineString',
+                        'coordinates': coords
+                    },
+                    'properties': {
+                        'shape_id': shape.shape_id,
+                        'route_id': route.route_id if route else None,
+                        'route_short_name': route.route_short_name if route else None,
+                        'route_long_name': route.route_long_name if route else None,
+                        'route_type': route.route_type if route else None,
+                    }
+                }
+                features.append(feature)
+        
+        return Response({
+            'count': all_shapes.count(),
+            'offset': offset,
+            'limit': limit,
+            'results': features
         })
 
 

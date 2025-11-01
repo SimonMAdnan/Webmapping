@@ -102,3 +102,59 @@ class SpatialSearchSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Polygon coordinates required")
         
         return data
+
+
+class ShapeSerializer(serializers.Serializer):
+    """Serializer for route shapes as GeoJSON LineStrings."""
+    type = serializers.SerializerMethodField()
+    geometry = serializers.SerializerMethodField()
+    properties = serializers.SerializerMethodField()
+    
+    def __init__(self, shape_instance, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.shape_instance = shape_instance
+    
+    def get_type(self, obj):
+        return 'Feature'
+    
+    def get_geometry(self, obj):
+        """Return GeoJSON LineString geometry."""
+        if hasattr(self.shape_instance, 'geometry') and self.shape_instance.geometry:
+            coords = list(self.shape_instance.geometry.coords)
+            return {
+                'type': 'LineString',
+                'coordinates': coords
+            }
+        return None
+    
+    def get_properties(self, obj):
+        """Return feature properties."""
+        shape = self.shape_instance
+        route = shape.trip_set.first().route if shape.trip_set.exists() else None
+        
+        return {
+            'shape_id': shape.shape_id,
+            'route_id': route.route_id if route else None,
+            'route_short_name': route.route_short_name if route else None,
+            'route_long_name': route.route_long_name if route else None,
+            'route_type': route.route_type if route else None,
+        }
+    
+    class Meta:
+        fields = ['type', 'geometry', 'properties']
+
+
+class TripScheduleSerializer(serializers.Serializer):
+    """Serializer for trip schedules at a specific stop."""
+    trip_id = serializers.CharField()
+    route_id = serializers.CharField()
+    route_short_name = serializers.CharField()
+    route_long_name = serializers.CharField()
+    trip_headsign = serializers.CharField()
+    arrival_time = serializers.TimeField(format='%H:%M:%S')
+    departure_time = serializers.TimeField(format='%H:%M:%S')
+    stop_sequence = serializers.IntegerField()
+    
+    class Meta:
+        fields = ['trip_id', 'route_id', 'route_short_name', 'route_long_name',
+                  'trip_headsign', 'arrival_time', 'departure_time', 'stop_sequence']

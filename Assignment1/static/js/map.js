@@ -16,6 +16,7 @@ let loadedVehicles = new Set();
 
 // Cache settings
 const CACHE_KEY_STOPS = 'transport_stops_cache';
+const CACHE_KEY_SHAPES = 'transport_shapes_cache';
 const CACHE_EXPIRY_MINUTES = 60; // Cache for 1 hour
 
 function getCachedStops() {
@@ -54,6 +55,85 @@ function cacheStops(stops) {
     }
 }
 
+// IndexedDB for large data caching
+const DB_NAME = 'TransportDB';
+const STORE_NAME = 'shapes';
+
+function initIndexedDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, 1);
+        
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+        
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            }
+        };
+    });
+}
+
+async function getCachedShapesFromIndexedDB() {
+    try {
+        const db = await initIndexedDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.get('shapes_data');
+            
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => {
+                const result = request.result;
+                if (result && result.timestamp) {
+                    const now = Date.now();
+                    const age = now - result.timestamp;
+                    
+                    // Check if cache is expired (1 hour)
+                    if (age > CACHE_EXPIRY_MINUTES * 60 * 1000) {
+                        console.log('Shapes cache expired');
+                        resolve(null);
+                    } else {
+                        console.log('Using cached shapes from IndexedDB, age:', Math.round(age / 1000), 'seconds');
+                        resolve(result.shapes);
+                    }
+                } else {
+                    resolve(null);
+                }
+            };
+        });
+    } catch (e) {
+        console.warn('IndexedDB read error:', e);
+        return null;
+    }
+}
+
+async function cacheShapesInIndexedDB(shapes) {
+    try {
+        const db = await initIndexedDB();
+        const data = {
+            id: 'shapes_data',
+            timestamp: Date.now(),
+            shapes: shapes
+        };
+        
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.put(data);
+            
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => {
+                console.log('Cached', shapes.length, 'shapes in IndexedDB');
+                resolve();
+            };
+        });
+    } catch (e) {
+        console.warn('IndexedDB write error:', e);
+    }
+}
+
 window.addEventListener('DOMContentLoaded', initMap);
 
 function initMap() {
@@ -75,11 +155,13 @@ function initMap() {
     // Store references to overlay layers for data updates
     window.stopMarkersLayer = overlayLayers['Stops'];
     window.vehicleMarkersLayer = overlayLayers['Vehicles'];
+    window.shapesLayer = overlayLayers['Shapes'];
     window.queryLayer = overlayLayers['Query Results'];
     
     console.log('Overlay layers assigned:', {
         stopMarkersLayer: window.stopMarkersLayer,
         vehicleMarkersLayer: window.vehicleMarkersLayer,
+        shapesLayer: window.shapesLayer,
         queryLayer: window.queryLayer
     });
 
@@ -95,6 +177,7 @@ function initMap() {
     console.log('Starting initial data load');
     loadVehicles();
     loadStops();
+    loadShapesAndDisplay();
     updateStatistics();
     
     console.log('Map initialized with multiple tile layers');
@@ -284,6 +367,7 @@ function createStopMarker(stop) {
     try {
         const coords = stop.geometry.coordinates;
         const props = stop.properties || stop;
+        const stopId = props.id || stop.id;
         
         console.log('Creating stop marker:', { coords, stop_name: props.stop_name });
         
@@ -296,17 +380,51 @@ function createStopMarker(stop) {
             fillOpacity: 0.75
         });
 
+        // Create popup with placeholder for schedules
         const popupContent = `
-            <div class="popup-content">
+            <div class="popup-content" style="min-width: 300px; max-height: 500px; overflow-y: auto;">
                 <strong>${props.stop_name}</strong><br>
                 Code: ${props.stop_code || 'N/A'}<br>
                 Type: ${props.stop_type || 'Stop'}<br>
-                Stop Name: <strong>${props.stop_name}</strong><br>
-                Agency: ${props.agencies && props.agencies.length > 0 ? '<strong>Agencies:</strong> ' + props.agencies.join(', ') : 'No agencies'}<br>
-                ♿ Wheelchair accessible: ${props.wheelchair_boarding }<br>
+                ♿ Wheelchair accessible: ${props.wheelchair_boarding ? 'Yes' : 'No'}<br>
+                <hr>
+                <small style="color: #666;">Loading schedules...</small>
+                <div id="schedules-${stopId}" style="margin-top: 10px; font-size: 12px;"></div>
             </div>
         `;
         marker.bindPopup(popupContent);
+        
+        // Load schedules when popup opens
+        marker.on('popupopen', async function() {
+            const schedulesContainer = document.getElementById(`schedules-${stopId}`);
+            if (schedulesContainer) {
+                const schedules = await loadStopSchedules(stopId);
+                
+                if (schedules && schedules.length > 0) {
+                    let schedulesHtml = '<strong>Upcoming Trips:</strong><br>';
+                    schedules.slice(0, 10).forEach(schedule => {
+                        schedulesHtml += `
+                            <div style="padding: 5px; border-left: 3px solid #3498db;">
+                                <strong>${schedule.route_short_name}</strong> 
+                                <span style="font-size: 11px; color: #666;">${schedule.route_long_name}</span><br>
+                                <small>
+                                    Arr: <strong>${schedule.arrival_time || 'N/A'}</strong> 
+                                    Dep: <strong>${schedule.departure_time || 'N/A'}</strong><br>
+                                    ${schedule.trip_headsign ? 'To: ' + schedule.trip_headsign : ''}
+                                </small>
+                            </div>
+                        `;
+                    });
+                    schedulesContainer.innerHTML = schedulesHtml;
+                    if (schedules.length > 10) {
+                        schedulesContainer.innerHTML += `<small style="color: #999;">... and ${schedules.length - 10} more trips</small>`;
+                    }
+                } else {
+                    schedulesContainer.innerHTML = '<small style="color: #999;">No schedules available</small>';
+                }
+            }
+        });
+        
         return marker;
     } catch (e) {
         console.error('Error creating stop marker:', e, stop);
@@ -346,6 +464,209 @@ async function updateStatistics() {
         }
     } catch (error) {
         console.error('Error updating statistics:', error);
+    }
+}
+
+async function loadShapesAndDisplay() {
+    try {
+        console.log('Loading and displaying route shapes...');
+        const shapeLayer = window.shapesLayer;
+        const spinner = document.getElementById('loading-spinner');
+        const spinnerText = document.getElementById('loading-text');
+        
+        if (!shapeLayer) {
+            console.error('Shape layer not found in window scope');
+            return;
+        }
+        
+        // Check IndexedDB cache first
+        let shapes = await getCachedShapesFromIndexedDB();
+        
+        if (!shapes || shapes.length === 0) {
+            console.log('Loading shapes from API in batches');
+            if (spinner) spinner.style.display = 'block';
+            
+            shapes = [];
+            let offset = 0;
+            const batchSize = 1000;
+            let totalCount = 0;
+            let hasMore = true;
+            
+            while (hasMore) {
+                try {
+                    if (spinnerText) spinnerText.textContent = `Loading shapes... (${shapes.length} loaded)`;
+                    
+                    const url = `/api/shapes/?limit=${batchSize}&offset=${offset}`;
+                    console.log(`Fetching shapes batch at offset ${offset}`);
+                    
+                    const response = await fetch(url);
+                    
+                    if (!response.ok) {
+                        console.error('Failed to load shapes:', response.status, response.statusText);
+                        if (spinner) spinner.style.display = 'none';
+                        return;
+                    }
+                    
+                    const data = await response.json();
+                    totalCount = data.count;
+                    
+                    if (!data.results || data.results.length === 0) {
+                        hasMore = false;
+                        break;
+                    }
+                    
+                    shapes = shapes.concat(data.results);
+                    offset += batchSize;
+                    
+                    console.log(`Loaded ${shapes.length} of ${totalCount} shapes`);
+                    
+                    // Check if we got all shapes
+                    if (shapes.length >= totalCount) {
+                        hasMore = false;
+                    }
+                } catch (err) {
+                    console.error('Error fetching shapes batch:', err);
+                    hasMore = false;
+                }
+            }
+            
+            // Cache the shapes in IndexedDB
+            if (shapes.length > 0) {
+                await cacheShapesInIndexedDB(shapes);
+            }
+        } else {
+            console.log('Using cached shapes from IndexedDB');
+            if (spinner) spinner.style.display = 'block';
+        }
+        
+        console.log('Shapes loaded:', {
+            count: shapes.length
+        });
+        
+        if (shapes && Array.isArray(shapes)) {
+            let count = 0;
+            let skipCount = 0;
+            
+            shapes.forEach((feature, idx) => {
+                try {
+                    if (!feature.geometry) {
+                        skipCount++;
+                        return;
+                    }
+                    
+                    if (feature.geometry.type !== 'LineString') {
+                        skipCount++;
+                        return;
+                    }
+                    
+                    if (!feature.geometry.coordinates || feature.geometry.coordinates.length === 0) {
+                        skipCount++;
+                        return;
+                    }
+                    
+                    const latlngs = feature.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                    
+                    const polyline = L.polyline(latlngs, {
+                        color: '#3498db',
+                        weight: 3,
+                        opacity: 0.6,
+                        dashArray: '5, 5'
+                    });
+                    
+                    const props = feature.properties;
+                    const popupContent = `
+                        <div class="popup-content">
+                            <strong>Route ${props.route_short_name || 'Unknown'}</strong><br>
+                            ${props.route_long_name || 'N/A'}<br>
+                            Type: ${props.route_type || 'N/A'}<br>
+                            Shape ID: ${props.shape_id}
+                        </div>
+                    `;
+                    polyline.bindPopup(popupContent);
+                    shapeLayer.addLayer(polyline);
+                    count++;
+                } catch (err) {
+                    console.error(`Error processing shape ${idx}:`, err);
+                    skipCount++;
+                }
+            });
+            
+            console.log(`Loaded and displayed ${count} route shapes (skipped ${skipCount})`);
+        } else {
+            console.warn('No shapes available');
+        }
+        
+        // Hide spinner when done
+        if (spinner) spinner.style.display = 'none';
+    } catch (error) {
+        console.error('Error loading shapes:', error);
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) spinner.style.display = 'none';
+    }
+}
+
+async function loadShapes() {
+    try {
+        console.log('Loading route shapes...');
+        const response = await fetch('/api/shapes/?limit=10000');
+        
+        if (!response.ok) {
+            console.error('Failed to load shapes:', response.status);
+            return;
+        }
+        
+        const data = await response.json();
+        const shapeLayer = L.featureGroup();
+        
+        if (data.results && Array.isArray(data.results)) {
+            data.results.forEach(feature => {
+                if (feature.geometry && feature.geometry.type === 'LineString') {
+                    const polyline = L.polyline(
+                        feature.geometry.coordinates.map(coord => [coord[1], coord[0]]),
+                        {
+                            color: '#3498db',
+                            weight: 3,
+                            opacity: 0.6,
+                            dashArray: '5, 5'
+                        }
+                    );
+                    
+                    const props = feature.properties;
+                    const popupContent = `
+                        <div class="popup-content">
+                            <strong>Route ${props.route_short_name}</strong><br>
+                            ${props.route_long_name}<br>
+                            Shape ID: ${props.shape_id}
+                        </div>
+                    `;
+                    polyline.bindPopup(popupContent);
+                    shapeLayer.addLayer(polyline);
+                }
+            });
+        }
+        
+        console.log('Loaded', shapeLayer.getLayers().length, 'route shapes');
+        return shapeLayer;
+    } catch (error) {
+        console.error('Error loading shapes:', error);
+    }
+}
+
+async function loadStopSchedules(stopId) {
+    try {
+        console.log('Loading schedules for stop:', stopId);
+        const response = await fetch(`/api/stops/${stopId}/schedules/`);
+        
+        if (!response.ok) {
+            console.error('Failed to load schedules:', response.status);
+            return null;
+        }
+        
+        const data = await response.json();
+        return data.schedules || [];
+    } catch (error) {
+        console.error('Error loading schedules:', error);
+        return [];
     }
 }
 
