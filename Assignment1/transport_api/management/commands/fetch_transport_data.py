@@ -317,218 +317,380 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f'Routes: {created_count} created, {updated_count} updated'))
 
     def fetch_stops_from_gtfs(self, parser):
-        """Load stops from local GTFS stops.txt file."""
+        """Load stops from GTFS (optimized)."""
         self.stdout.write('Loading stops from GTFS...')
         
+        from transport_api.models import Stop
+        
         created_count = 0
-        updated_count = 0
+        stops_to_create = []
+        batch_size = 5000
         
         try:
             for stop_data in parser.parse_stops():
                 try:
-                    location = Point(
-                        float(stop_data['stop_lon']),
-                        float(stop_data['stop_lat'])
+                    stops_to_create.append(
+                        Stop(
+                            stop_id=stop_data.get('stop_id'),
+                            stop_code=stop_data.get('stop_code', ''),
+                            stop_name=stop_data.get('stop_name', ''),
+                            stop_desc=stop_data.get('stop_desc', ''),
+                            stop_type=stop_data.get('stop_type', ''),
+                            wheelchair_boarding=stop_data.get('wheelchair_boarding', False),
+                        )
                     )
                     
-                    stop, created = Stop.objects.update_or_create(
-                        stop_id=stop_data['stop_id'],
-                        defaults={
-                            'stop_code': stop_data.get('stop_code', ''),
-                            'stop_name': stop_data.get('stop_name', ''),
-                            'stop_desc': stop_data.get('stop_desc', ''),
-                            'location': location,
-                            'stop_type': stop_data.get('location_type', 'stop'),
-                        }
-                    )
-                    
-                    if created:
-                        created_count += 1
-                    else:
-                        updated_count += 1
+                    if len(stops_to_create) >= batch_size:
+                        Stop.objects.bulk_create(stops_to_create, ignore_conflicts=True)
+                        created_count += len(stops_to_create)
+                        stops_to_create = []
+                        self.stdout.write(f'  Processed {created_count} stops...')
                         
                 except Exception as e:
-                    self.stdout.write(self.style.WARNING(f'Error processing stop {stop_data.get("stop_id")}: {str(e)}'))
+                    self.stdout.write(self.style.WARNING(f'Error: {str(e)}'))
                     continue
+        
+            if stops_to_create:
+                Stop.objects.bulk_create(stops_to_create, ignore_conflicts=True)
+                created_count += len(stops_to_create)
             
-            self.stdout.write(self.style.SUCCESS(f'Stops: {created_count} created, {updated_count} updated'))
-            
+            self.stdout.write(self.style.SUCCESS(f'Stops: {created_count} created'))
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f'Error reading GTFS stops: {str(e)}'))
+            self.stdout.write(self.style.ERROR(f'Error: {str(e)}'))
 
     def fetch_routes_from_gtfs(self, parser):
-        """Load routes from local GTFS routes.txt file."""
+        """Load routes from GTFS (optimized)."""
         self.stdout.write('Loading routes from GTFS...')
         
+        from transport_api.models import Route
+        
         created_count = 0
-        updated_count = 0
+        routes_to_create = []
+        batch_size = 100000
         
         try:
             for route_data in parser.parse_routes():
                 try:
-                    route, created = Route.objects.update_or_create(
-                        route_id=route_data['route_id'],
-                        defaults={
-                            'route_short_name': route_data.get('route_short_name', ''),
-                            'route_long_name': route_data.get('route_long_name', ''),
-                            'route_type': route_data.get('route_type', '3'),
-                            'operator': route_data.get('agency_id', ''),
-                        }
+                    routes_to_create.append(
+                        Route(
+                            route_id=route_data.get('route_id'),
+                            route_short_name=route_data.get('route_short_name', ''),
+                            route_long_name=route_data.get('route_long_name', ''),
+                            route_type=route_data.get('route_type', ''),
+                            operator=route_data.get('operator', ''),
+                        )
                     )
                     
-                    if created:
-                        created_count += 1
-                    else:
-                        updated_count += 1
+                    if len(routes_to_create) >= batch_size:
+                        Route.objects.bulk_create(routes_to_create, ignore_conflicts=True)
+                        created_count += len(routes_to_create)
+                        routes_to_create = []
+                        self.stdout.write(f'  Processed {created_count} routes...')
                         
                 except Exception as e:
-                    self.stdout.write(self.style.WARNING(f'Error processing route {route_data.get("route_id")}: {str(e)}'))
+                    self.stdout.write(self.style.WARNING(f'Error: {str(e)}'))
                     continue
+        
+            if routes_to_create:
+                Route.objects.bulk_create(routes_to_create, ignore_conflicts=True)
+                created_count += len(routes_to_create)
             
-            self.stdout.write(self.style.SUCCESS(f'Routes: {created_count} created, {updated_count} updated'))
-            
+            self.stdout.write(self.style.SUCCESS(f'Routes: {created_count} created'))
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f'Error reading GTFS routes: {str(e)}'))
+            self.stdout.write(self.style.ERROR(f'Error: {str(e)}'))
 
     def fetch_agencies_from_gtfs(self, parser):
-        """Load agencies from GTFS."""
+        """Load agencies from GTFS (optimized)."""
         self.stdout.write('Loading agencies from GTFS...')
         
         from transport_api.models import Agency
         
         created_count = 0
-        updated_count = 0
+        agencies_to_create = []
+        batch_size = 5000
         
         try:
             for agency_data in parser.parse_agencies():
                 try:
-                    agency, created = Agency.objects.update_or_create(
-                        agency_id=agency_data.get('agency_id', ''),
-                        defaults={
-                            'agency_name': agency_data.get('agency_name', ''),
-                            'agency_url': agency_data.get('agency_url', ''),
-                            'agency_timezone': agency_data.get('agency_timezone', ''),
-                            'agency_lang': agency_data.get('agency_lang', ''),
-                            'agency_phone': agency_data.get('agency_phone', ''),
-                            'agency_fare_url': agency_data.get('agency_fare_url', ''),
-                        }
+                    agencies_to_create.append(
+                        Agency(
+                            agency_id=agency_data.get('agency_id'),
+                            agency_name=agency_data.get('agency_name', ''),
+                            agency_url=agency_data.get('agency_url', ''),
+                            agency_timezone=agency_data.get('agency_timezone', ''),
+                            agency_lang=agency_data.get('agency_lang', ''),
+                            agency_phone=agency_data.get('agency_phone', ''),
+                        )
                     )
-                    if created:
-                        created_count += 1
-                    else:
-                        updated_count += 1
+                    
+                    if len(agencies_to_create) >= batch_size:
+                        Agency.objects.bulk_create(agencies_to_create, ignore_conflicts=True)
+                        created_count += len(agencies_to_create)
+                        agencies_to_create = []
+                        self.stdout.write(f'  Processed {created_count} agencies...')
+                        
                 except Exception as e:
-                    self.stdout.write(self.style.WARNING(f'Error processing agency: {str(e)}'))
+                    self.stdout.write(self.style.WARNING(f'Error: {str(e)}'))
                     continue
             
-            self.stdout.write(self.style.SUCCESS(f'Agencies: {created_count} created, {updated_count} updated'))
+            if agencies_to_create:
+                Agency.objects.bulk_create(agencies_to_create, ignore_conflicts=True)
+                created_count += len(agencies_to_create)
+            
+            self.stdout.write(self.style.SUCCESS(f'Agencies: {created_count} created'))
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f'Error reading GTFS agencies: {str(e)}'))
+            self.stdout.write(self.style.ERROR(f'Error: {str(e)}'))
 
     def fetch_calendars_from_gtfs(self, parser):
-        """Load calendars from GTFS."""
+        """Load calendars from GTFS (optimized)."""
         self.stdout.write('Loading calendars from GTFS...')
         
         from transport_api.models import Calendar
         
         created_count = 0
-        updated_count = 0
+        calendars_to_create = []
+        batch_size = 10000
         
         try:
             for calendar_data in parser.parse_calendars():
                 try:
-                    calendar, created = Calendar.objects.update_or_create(
-                        service_id=calendar_data.get('service_id'),
-                        defaults={
-                            'monday': calendar_data.get('monday', False),
-                            'tuesday': calendar_data.get('tuesday', False),
-                            'wednesday': calendar_data.get('wednesday', False),
-                            'thursday': calendar_data.get('thursday', False),
-                            'friday': calendar_data.get('friday', False),
-                            'saturday': calendar_data.get('saturday', False),
-                            'sunday': calendar_data.get('sunday', False),
-                            'start_date': calendar_data.get('start_date'),
-                            'end_date': calendar_data.get('end_date'),
-                        }
+                    # Parser already handles date conversion and defaults to today
+                    start_date = calendar_data.get('start_date')
+                    end_date = calendar_data.get('end_date')
+                    
+                    calendars_to_create.append(
+                        Calendar(
+                            service_id=calendar_data.get('service_id'),
+                            monday=calendar_data.get('monday', False),
+                            tuesday=calendar_data.get('tuesday', False),
+                            wednesday=calendar_data.get('wednesday', False),
+                            thursday=calendar_data.get('thursday', False),
+                            friday=calendar_data.get('friday', False),
+                            saturday=calendar_data.get('saturday', False),
+                            sunday=calendar_data.get('sunday', False),
+                            start_date=start_date,
+                            end_date=end_date,
+                        )
                     )
-                    if created:
-                        created_count += 1
-                    else:
-                        updated_count += 1
+                    
+                    if len(calendars_to_create) >= batch_size:
+                        Calendar.objects.bulk_create(calendars_to_create, ignore_conflicts=True)
+                        created_count += len(calendars_to_create)
+                        calendars_to_create = []
+                        self.stdout.write(f'  Processed {created_count} calendars...')
+                        
                 except Exception as e:
-                    self.stdout.write(self.style.WARNING(f'Error processing calendar: {str(e)}'))
+                    self.stdout.write(self.style.WARNING(f'Error: {str(e)}'))
                     continue
             
-            self.stdout.write(self.style.SUCCESS(f'Calendars: {created_count} created, {updated_count} updated'))
+            if calendars_to_create:
+                Calendar.objects.bulk_create(calendars_to_create, ignore_conflicts=True)
+                created_count += len(calendars_to_create)
+            
+            self.stdout.write(self.style.SUCCESS(f'Calendars: {created_count} created'))
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f'Error reading GTFS calendars: {str(e)}'))
+            self.stdout.write(self.style.ERROR(f'Error: {str(e)}'))
 
-    def fetch_trips_from_gtfs(self, parser):
-        """Load trips from GTFS."""
-        self.stdout.write('Loading trips from GTFS...')
+    def fetch_stops_from_gtfs(self, parser):
+        """Load stops from GTFS (optimized)."""
+        self.stdout.write('Loading stops from GTFS...')
         
-        from transport_api.models import Trip
+        from transport_api.models import Stop
+        from django.contrib.gis.geos import Point
         
         created_count = 0
-        updated_count = 0
+        stops_to_create = []
+        batch_size = 10000
         
         try:
-            for trip_data in parser.parse_trips():
+            for stop_data in parser.parse_stops():
                 try:
-                    route_id = trip_data.get('route_id')
-                    if not Route.objects.filter(route_id=route_id).exists():
-                        continue
+                    lat = float(stop_data.get('stop_lat', 0))
+                    lon = float(stop_data.get('stop_lon', 0))
                     
-                    route = Route.objects.get(route_id=route_id)
-                    
-                    trip, created = Trip.objects.update_or_create(
-                        trip_id=trip_data.get('trip_id'),
-                        defaults={
-                            'route': route,
-                            'service_id': trip_data.get('service_id', ''),
-                            'trip_headsign': trip_data.get('trip_headsign', ''),
-                            'direction_id': int(trip_data.get('direction_id', 0)),
-                            'shape_id': trip_data.get('shape_id', ''),
-                            'wheelchair_accessible': trip_data.get('wheelchair_accessible', '0') == '1',
-                        }
+                    stops_to_create.append(
+                        Stop(
+                            stop_id=stop_data.get('stop_id'),
+                            stop_code=stop_data.get('stop_code', ''),
+                            stop_name=stop_data.get('stop_name', ''),
+                            stop_desc=stop_data.get('stop_desc', ''),
+                            location=Point(lon, lat),
+                            stop_type=stop_data.get('stop_type', 'stop'),
+                            wheelchair_boarding=bool(int(stop_data.get('wheelchair_boarding', 0))),
+                        )
                     )
-                    if created:
-                        created_count += 1
-                    else:
-                        updated_count += 1
+                    
+                    if len(stops_to_create) >= batch_size:
+                        Stop.objects.bulk_create(stops_to_create, ignore_conflicts=True)
+                        created_count += len(stops_to_create)
+                        stops_to_create = []
+                        self.stdout.write(f'  Processed {created_count} stops...')
+                        
                 except Exception as e:
-                    self.stdout.write(self.style.WARNING(f'Error processing trip: {str(e)}'))
+                    self.stdout.write(self.style.WARNING(f'Error: {str(e)}'))
                     continue
             
-            self.stdout.write(self.style.SUCCESS(f'Trips: {created_count} created, {updated_count} updated'))
+            if stops_to_create:
+                Stop.objects.bulk_create(stops_to_create, ignore_conflicts=True)
+                created_count += len(stops_to_create)
+            
+            self.stdout.write(self.style.SUCCESS(f'Stops: {created_count} created'))
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f'Error reading GTFS trips: {str(e)}'))
+            self.stdout.write(self.style.ERROR(f'Error: {str(e)}'))
 
-    def fetch_stop_times_from_gtfs(self, parser):
-        """Load stop times from GTFS."""
-        self.stdout.write('Loading stop times from GTFS...')
+    def fetch_shapes_from_gtfs(self, parser):
+        """Load shapes from GTFS (optimized)."""
+        self.stdout.write('Loading shapes from GTFS...')
         
-        from transport_api.models import StopTime, Trip
+        from transport_api.models import Shape
+        from django.contrib.gis.geos import LineString
         
         created_count = 0
-        updated_count = 0
+        shapes_dict = {}  # {shape_id: [(lon, lat), ...]}
+        batch_size = 100000
+        shapes_to_create = []
+        
+        try:
+            # First, collect all points for each shape
+            for shape_data in parser.parse_shapes():
+                try:
+                    shape_id = shape_data.get('shape_id')
+                    lat = float(shape_data.get('shape_pt_lat', 0))
+                    lon = float(shape_data.get('shape_pt_lon', 0))
+                    sequence = int(shape_data.get('shape_pt_sequence', 0))
+                    
+                    if shape_id not in shapes_dict:
+                        shapes_dict[shape_id] = {}
+                    shapes_dict[shape_id][sequence] = (lon, lat)
+                    
+                except Exception as e:
+                    self.stdout.write(self.style.WARNING(f'Error parsing shape: {str(e)}'))
+                    continue
+            
+            # Now create Shape objects with LineStrings
+            for shape_id, points_dict in shapes_dict.items():
+                try:
+                    # Sort by sequence and extract coordinates
+                    sorted_sequences = sorted(points_dict.keys())
+                    coordinates = [points_dict[seq] for seq in sorted_sequences]
+                    
+                    if len(coordinates) >= 2:
+                        line = LineString(coordinates)
+                        shapes_to_create.append(
+                            Shape(
+                                shape_id=shape_id,
+                                geometry=line,
+                                sequence=1,
+                            )
+                        )
+                        
+                        if len(shapes_to_create) >= batch_size:
+                            Shape.objects.bulk_create(shapes_to_create, ignore_conflicts=True)
+                            created_count += len(shapes_to_create)
+                            shapes_to_create = []
+                            self.stdout.write(f'  Processed {created_count} shapes...')
+                
+                except Exception as e:
+                    self.stdout.write(self.style.WARNING(f'Error creating shape {shape_id}: {str(e)}'))
+                    continue
+            
+            if shapes_to_create:
+                Shape.objects.bulk_create(shapes_to_create, ignore_conflicts=True)
+                created_count += len(shapes_to_create)
+            
+            self.stdout.write(self.style.SUCCESS(f'Shapes: {created_count} created'))
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'Error: {str(e)}'))
+
+    def fetch_trips_from_gtfs(self, parser):
+        """Load trips from GTFS (optimized)."""
+        self.stdout.write('Loading trips from GTFS...')
+        
+        from transport_api.models import Trip, Route
+        
+        created_count = 0
         skipped = 0
         
         try:
+            # Pre-cache route IDs
+            route_map = {r.route_id: r for r in Route.objects.all()}
+            route_ids = set(route_map.keys())
+            
+            trips_to_create = []
+            batch_size = 100000
+            
+            for trip_data in parser.parse_trips():
+                try:
+                    route_id = trip_data.get('route_id')
+                    trip_id = trip_data.get('trip_id')
+                    
+                    if route_id not in route_ids:
+                        skipped += 1
+                        continue
+                    
+                    route = route_map[route_id]
+                    
+                    trips_to_create.append(
+                        Trip(
+                            trip_id=trip_id,
+                            route=route,
+                            service_id=trip_data.get('service_id'),
+                            trip_headsign=trip_data.get('trip_headsign', ''),
+                            direction_id=int(trip_data.get('direction_id', 0)),
+                            shape_id=trip_data.get('shape_id', ''),
+                            wheelchair_accessible=bool(int(trip_data.get('wheelchair_accessible', 0))),
+                        )
+                    )
+                    
+                    if len(trips_to_create) >= batch_size:
+                        Trip.objects.bulk_create(trips_to_create, ignore_conflicts=True)
+                        created_count += len(trips_to_create)
+                        trips_to_create = []
+                        self.stdout.write(f'  Processed {created_count} trips...')
+                        
+                except Exception as e:
+                    self.stdout.write(self.style.WARNING(f'Error: {str(e)}'))
+                    continue
+            
+            if trips_to_create:
+                Trip.objects.bulk_create(trips_to_create, ignore_conflicts=True)
+                created_count += len(trips_to_create)
+            
+            self.stdout.write(self.style.SUCCESS(f'Trips: {created_count} created, {skipped} skipped'))
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'Error: {str(e)}'))
+
+    def fetch_stop_times_from_gtfs(self, parser):
+        """Load stop times from GTFS (optimized)."""
+        self.stdout.write('Loading stop times from GTFS...')
+        
+        from transport_api.models import StopTime, Trip, Stop
+        
+        created_count = 0
+        skipped = 0
+        
+        try:
+            # Pre-cache trip and stop IDs
+            trip_map = {t.trip_id: t for t in Trip.objects.all()}
+            stop_map = {s.stop_id: s for s in Stop.objects.all()}
+            
+            trip_ids = set(trip_map.keys())
+            stop_ids = set(stop_map.keys())
+            
+            stop_times_to_create = []
+            batch_size = 100000
+            
             for stop_time_data in parser.parse_stop_times():
                 try:
                     trip_id = stop_time_data.get('trip_id')
                     stop_id = stop_time_data.get('stop_id')
                     
-                    if not Trip.objects.filter(trip_id=trip_id).exists():
-                        skipped += 1
-                        continue
-                    if not Stop.objects.filter(stop_id=stop_id).exists():
+                    if trip_id not in trip_ids or stop_id not in stop_ids:
                         skipped += 1
                         continue
                     
-                    trip = Trip.objects.get(trip_id=trip_id)
-                    stop = Stop.objects.get(stop_id=stop_id)
+                    trip = trip_map[trip_id]
+                    stop = stop_map[stop_id]
                     
                     # Parse times
                     arrival_time = None
@@ -536,86 +698,44 @@ class Command(BaseCommand):
                     
                     if stop_time_data.get('arrival_time'):
                         try:
-                            from datetime import datetime
                             arrival_time = datetime.strptime(stop_time_data.get('arrival_time'), '%H:%M:%S').time()
                         except:
                             pass
                     
                     if stop_time_data.get('departure_time'):
                         try:
-                            from datetime import datetime
                             departure_time = datetime.strptime(stop_time_data.get('departure_time'), '%H:%M:%S').time()
                         except:
                             pass
                     
-                    stop_time, created = StopTime.objects.update_or_create(
-                        trip=trip,
-                        stop_sequence=stop_time_data.get('stop_sequence'),
-                        defaults={
-                            'stop': stop,
-                            'arrival_time': arrival_time,
-                            'departure_time': departure_time,
-                            'stop_headsign': stop_time_data.get('stop_headsign', ''),
-                            'pickup_type': int(stop_time_data.get('pickup_type', 0)),
-                            'drop_off_type': int(stop_time_data.get('drop_off_type', 0)),
-                        }
+                    stop_times_to_create.append(
+                        StopTime(
+                            trip=trip,
+                            stop=stop,
+                            stop_sequence=int(stop_time_data.get('stop_sequence', 0)),
+                            arrival_time=arrival_time,
+                            departure_time=departure_time,
+                            stop_headsign=stop_time_data.get('stop_headsign', ''),
+                            pickup_type=int(stop_time_data.get('pickup_type', 0)),
+                            drop_off_type=int(stop_time_data.get('drop_off_type', 0)),
+                        )
                     )
-                    if created:
-                        created_count += 1
-                    else:
-                        updated_count += 1
+                    
+                    if len(stop_times_to_create) >= batch_size:
+                        StopTime.objects.bulk_create(stop_times_to_create, ignore_conflicts=True)
+                        created_count += len(stop_times_to_create)
+                        stop_times_to_create = []
+                        self.stdout.write(f'  Processed {created_count} stop times...')
+                        
                 except Exception as e:
-                    self.stdout.write(self.style.WARNING(f'Error processing stop time: {str(e)}'))
+                    self.stdout.write(self.style.WARNING(f'Error: {str(e)}'))
                     continue
             
-            self.stdout.write(self.style.SUCCESS(f'Stop Times: {created_count} created, {updated_count} updated, {skipped} skipped'))
+            if stop_times_to_create:
+                StopTime.objects.bulk_create(stop_times_to_create, ignore_conflicts=True)
+                created_count += len(stop_times_to_create)
+            
+            self.stdout.write(self.style.SUCCESS(f'Stop Times: {created_count} created, {skipped} skipped'))
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f'Error reading GTFS stop times: {str(e)}'))
-
-    def fetch_shapes_from_gtfs(self, parser):
-        """Load shapes (route geometries) from GTFS."""
-        self.stdout.write('Loading shapes from GTFS...')
-        
-        from transport_api.models import Shape
-        from collections import defaultdict
-        
-        created_count = 0
-        
-        try:
-            # Group shape points by shape_id
-            shapes_by_id = defaultdict(list)
-            
-            for shape_data in parser.parse_shapes():
-                shapes_by_id[shape_data.get('shape_id')].append(shape_data)
-            
-            # Create Shape objects with LineString geometry
-            for shape_id, points in shapes_by_id.items():
-                try:
-                    if not points:
-                        continue
-                    
-                    # Sort by sequence
-                    points.sort(key=lambda x: x.get('shape_pt_sequence', 0))
-                    
-                    # Create LineString from coordinates
-                    coords = [(p.get('shape_pt_lon'), p.get('shape_pt_lat')) for p in points]
-                    from django.contrib.gis.geos import LineString
-                    geometry = LineString(coords)
-                    
-                    shape, created = Shape.objects.update_or_create(
-                        shape_id=shape_id,
-                        sequence=0,
-                        defaults={
-                            'geometry': geometry,
-                        }
-                    )
-                    if created:
-                        created_count += 1
-                except Exception as e:
-                    self.stdout.write(self.style.WARNING(f'Error processing shape {shape_id}: {str(e)}'))
-                    continue
-            
-            self.stdout.write(self.style.SUCCESS(f'Shapes: {created_count} created'))
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f'Error reading GTFS shapes: {str(e)}'))
+            self.stdout.write(self.style.ERROR(f'Error: {str(e)}'))
 

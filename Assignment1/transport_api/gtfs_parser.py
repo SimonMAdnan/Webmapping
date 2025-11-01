@@ -58,8 +58,7 @@ class GTFSParser:
         Parse routes.txt and yield route dictionaries.
         
         Yields:
-            Dict with keys: route_id, agency_id, route_short_name, route_long_name,
-                           route_type, route_url, route_color, route_text_color
+            Dict with keys: route_id, route_short_name, route_long_name, route_type, operator
         """
         routes_file = self.gtfs_path / 'routes.txt'
         
@@ -72,13 +71,10 @@ class GTFSParser:
                 try:
                     yield {
                         'route_id': row.get('route_id'),
-                        'agency_id': row.get('agency_id', ''),
                         'route_short_name': row.get('route_short_name', ''),
                         'route_long_name': row.get('route_long_name', ''),
                         'route_type': row.get('route_type', '3'),
-                        'route_url': row.get('route_url', ''),
-                        'route_color': row.get('route_color', ''),
-                        'route_text_color': row.get('route_text_color', ''),
+                        'operator': row.get('agency_id', ''),
                     }
                 except KeyError:
                     continue
@@ -167,6 +163,8 @@ class GTFSParser:
     
     def parse_calendars(self) -> Generator[Dict, None, None]:
         """Parse calendar.txt file."""
+        from datetime import datetime, date
+        
         calendar_file = self.gtfs_path / 'calendar.txt'
         
         if not calendar_file.exists():
@@ -176,7 +174,19 @@ class GTFSParser:
             reader = csv.DictReader(f)
             for row in reader:
                 try:
-                    from datetime import datetime
+                    start_date = None
+                    end_date = None
+                    
+                    try:
+                        start_date = datetime.strptime(row.get('start_date'), '%Y%m%d').date()
+                    except (ValueError, TypeError):
+                        start_date = date.today()
+                    
+                    try:
+                        end_date = datetime.strptime(row.get('end_date'), '%Y%m%d').date()
+                    except (ValueError, TypeError):
+                        end_date = date.today()
+                    
                     yield {
                         'service_id': row.get('service_id'),
                         'monday': row.get('monday', '0') == '1',
@@ -186,8 +196,8 @@ class GTFSParser:
                         'friday': row.get('friday', '0') == '1',
                         'saturday': row.get('saturday', '0') == '1',
                         'sunday': row.get('sunday', '0') == '1',
-                        'start_date': datetime.strptime(row.get('start_date'), '%Y%m%d').date(),
-                        'end_date': datetime.strptime(row.get('end_date'), '%Y%m%d').date(),
+                        'start_date': start_date,
+                        'end_date': end_date,
                     }
                 except (ValueError, KeyError):
                     continue
