@@ -152,5 +152,7 @@ npm-debug.log*
 # Zip files (solutions)
 *.zip
 
-# Static files (Django)
-staticfiles/
+
+ARCHITECTURE.md
+logfile.log
+GTFS_Realtime/

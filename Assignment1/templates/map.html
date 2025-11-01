@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>National Transport Map</title>
+    {% load static %}
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    
+    <style>
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .navbar {
+            flex-shrink: 0;
+            height: 70px;
+        }
+        
+        .container-fluid {
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .row {
+            height: 100%;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-dark navbar-gradient">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-map"></i> National Transport Network
+            </a>
+            <span class="navbar-text text-light">Real-time Vehicle & Stop Tracking</span>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Left Sidebar - Controls -->
+            <div class="col-lg-3 sidebar-left d-none d-lg-block" style="overflow-y: auto; border-right: 1px solid #ddd; max-height: 100%;">
+                <div class="control-panel">
+                    <h5 class="panel-title"><i class="fas fa-sliders-h"></i> Query Controls</h5>
+                    
+                    <!-- Tabs for different queries -->
+                    <ul class="nav nav-tabs nav-fill" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#radiusTab">Radius</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#boundsTab">Bounds</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#advancedTab">Advanced</a>
+                        </li>
+                    </ul>
+
+                    <!-- Tab Content -->
+                    <div class="tab-content">
+                        <!-- Radius Search Tab -->
+                        <div class="tab-pane fade show active" id="radiusTab">
+                            <div class="form-group">
+                                <label>Query Type</label>
+                                <select id="radiusType" class="form-select form-select-sm">
+                                    <option value="stops">Stops</option>
+                                    <option value="vehicles">Vehicles</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Latitude</label>
+                                <input type="number" id="radiusLat" class="form-control form-control-sm" placeholder="53.3498" step="0.0001">
+                            </div>
+                            <div class="form-group">
+                                <label>Longitude</label>
+                                <input type="number" id="radiusLon" class="form-control form-control-sm" placeholder="-6.2603" step="0.0001">
+                            </div>
+                            <div class="form-group">
+                                <label>Search Radius (meters)</label>
+                                <input type="number" id="radiusDistance" class="form-control form-control-sm" value="500" min="100" max="5000" step="100">
+                            </div>
+                            <button class="btn btn-primary btn-sm w-100" onclick="performRadiusSearch()">
+                                <i class="fas fa-search"></i> Search
+                            </button>
+                        </div>
+
+                        <!-- Bounding Box Search Tab -->
+                        <div class="tab-pane fade" id="boundsTab">
+                            <div class="form-group">
+                                <label>Query Type</label>
+                                <select id="boundsType" class="form-select form-select-sm">
+                                    <option value="stops">Stops</option>
+                                    <option value="vehicles">Vehicles</option>
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <div class="col-6">
+                                    <label class="small">Min Latitude</label>
+                                    <input type="number" id="bboxMinLat" class="form-control form-control-sm" step="0.0001">
+                                </div>
+                                <div class="col-6">
+                                    <label class="small">Max Latitude</label>
+                                    <input type="number" id="bboxMaxLat" class="form-control form-control-sm" step="0.0001">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="col-6">
+                                    <label class="small">Min Longitude</label>
+                                    <input type="number" id="bboxMinLon" class="form-control form-control-sm" step="0.0001">
+                                </div>
+                                <div class="col-6">
+                                    <label class="small">Max Longitude</label>
+                                    <input type="number" id="bboxMaxLon" class="form-control form-control-sm" step="0.0001">
+                                </div>
+                            </div>
+                            <button class="btn btn-primary btn-sm w-100" onclick="performBoundsSearch()">
+                                <i class="fas fa-search"></i> Search
+                            </button>
+                        </div>
+
+                        <!-- Advanced Queries Tab -->
+                        <div class="tab-pane fade" id="advancedTab">
+                            <div class="form-group">
+                                <label>Query Type</label>
+                                <select id="advancedQueryType" class="form-select form-select-sm" onchange="updateAdvancedOptions()">
+                                    <option value="congestion">Congestion Detection</option>
+                                    <option value="route-analysis">Route Analysis</option>
+                                    <option value="nearest-stops">Nearest Stops</option>
+                                </select>
+                            </div>
+
+                            <!-- Route Analysis Options -->
+                            <div id="routeOptions" style="display: none;">
+                                <div class="form-group">
+                                    <label>Select Route</label>
+                                    <select id="routeSelect" class="form-select form-select-sm">
+                                        <option value="">Loading routes...</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Nearest Stops Options -->
+                            <div id="nearestOptions" style="display: none;">
+                                <div class="form-group">
+                                    <label>Latitude</label>
+                                    <input type="number" id="nearestLat" class="form-control form-control-sm" placeholder="53.3498" step="0.0001">
+                                </div>
+                                <div class="form-group">
+                                    <label>Longitude</label>
+                                    <input type="number" id="nearestLon" class="form-control form-control-sm" placeholder="-6.2603" step="0.0001">
+                                </div>
+                                <div class="form-group">
+                                    <label>Number of Stops</label>
+                                    <input type="number" id="nearestCount" class="form-control form-control-sm" value="5" min="1" max="20">
+                                </div>
+                            </div>
+
+                            <button class="btn btn-primary btn-sm w-100" onclick="performAdvancedQuery()">
+                                <i class="fas fa-project-diagram"></i> Execute
+                            </button>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Query Results -->
+                    <div id="queryResults" style="display: none;">
+                        <h6><i class="fas fa-list"></i> Results</h6>
+                        <div id="resultsList" class="results-container"></div>
+                        <button class="btn btn-sm btn-secondary w-100 mt-2" onclick="clearQuery()">
+                            <i class="fas fa-times"></i> Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map -->
+            <div class="col-lg-7 map-container">
+                <div id="map"></div>
+            </div>
+
+            <!-- Right Sidebar - Stats & Settings -->
+            <div class="col-lg-2 sidebar-right d-none d-lg-block">
+                <div class="control-panel">
+                    <!-- Statistics -->
+                    <h5 class="panel-title"><i class="fas fa-chart-bar"></i> Statistics</h5>
+                    <div class="stat-item">
+                        <div class="stat-label">Active Vehicles</div>
+                        <div class="stat-value" id="vehicleCount">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Total Stops</div>
+                        <div class="stat-value" id="stopCount">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Routes</div>
+                        <div class="stat-value" id="routeCount">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Avg Speed</div>
+                        <div class="stat-value" id="avgSpeed">-- km/h</div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Layer Toggles -->
+                    <h6 class="panel-title"><i class="fas fa-layer-group"></i> Layers</h6>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="layerVehicles" checked onchange="toggleLayer('vehicles')">
+                        <label class="form-check-label" for="layerVehicles">
+                            Vehicles
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="layerStops" checked onchange="toggleLayer('stops')">
+                        <label class="form-check-label" for="layerStops">
+                            Stops
+                        </label>
+                    </div>
+
+                    <hr>
+
+                    <!-- Auto-Refresh Settings -->
+                    <h6 class="panel-title"><i class="fas fa-sync"></i> Auto-Refresh</h6>
+                    <div class="form-group">
+                        <label class="small">Interval (seconds)</label>
+                        <input type="number" id="refreshInterval" class="form-control form-control-sm" value="10" min="5" max="60">
+                    </div>
+                    <button class="btn btn-secondary btn-sm w-100" id="refreshBtn" onclick="toggleAutoRefresh()">
+                        ▶️ Start Auto-refresh
+                    </button>
+
+                    <hr>
+
+                    <!-- Map Legend -->
+                    <h6 class="panel-title"><i class="fas fa-book"></i> Legend</h6>
+                    <div class="legend-item">
+                        <i class="fas fa-bus legend-icon"></i> Vehicle
+                    </div>
+                    <div class="legend-item">
+                        <i class="fas fa-map-pin legend-icon"></i> Stop
+                    </div>
+                    <div class="legend-item">
+                        <i class="fas fa-star legend-icon"></i> Query Result
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map Container - Full Height -->
+            <div class="col-lg-9" style="padding: 0; height: 100%; overflow: hidden;">
+                <div id="map" style="width: 100%; height: 100%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    
+    <!-- Optional: Leaflet plugins for enhanced functionality -->
+    <!-- Heatmap Layer -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/1.0.5/leaflet-heat.min.js"></script>
+    
+    <!-- Marker Clustering -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.1/MarkerCluster.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.1/MarkerCluster.Default.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.1/leaflet.markercluster.min.js"></script>
+    
+    <!-- Drawing Tools -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-draw/1.0.4/leaflet.draw.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-draw/1.0.4/leaflet.draw.min.js"></script>
+    
+    <!-- Measurement Tool -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-measure/3.1.0/leaflet-measure.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-measure/3.1.0/leaflet-measure.min.js"></script>
+    
+    <script>
+        // Set API base URL from context
+        window.API_BASE_URL = '{{ api_base_url }}' || '/api';
+    </script>
+    <script src="{% static 'js/layers.js' %}"></script>
+    <script src="{% static 'js/api.js' %}"></script>
+    <script src="{% static 'js/map.js' %}"></script>
+    <script src="{% static 'js/queries.js' %}"></script>
+</body>
+</html>
