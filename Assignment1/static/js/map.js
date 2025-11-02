@@ -331,6 +331,9 @@ function initMap() {
     console.log('Starting initial data load');
     loadRoutesWithTripsAndServices();  // Load routes with trips and services (replaces loadShapesAndDisplay)
     
+    // Load and display statistics
+    updateStatistics();
+    
     console.log('Map initialized with all layers unchecked');
 }
 

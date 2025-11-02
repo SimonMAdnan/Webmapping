@@ -1117,10 +1117,10 @@ function loadRoutesIntoSelector() {
     fetch('/api/routes/')
         .then(resp => resp.json())
         .then(data => {
-            console.log('Routes API response:', data);
-            console.log('data.results:', data.results);
-            console.log('data.results.features:', data.results.features);
-            console.log('data.results.features length:', data.results.features ? data.results.features.length : 'undefined');
+            //console.log('Routes API response:', data);
+            //console.log('data.results:', data.results);
+            //console.log('data.results.features:', data.results.features);
+            //console.log('data.results.features length:', data.results.features ? data.results.features.length : 'undefined');
             
             let routes = [];
             
@@ -1131,13 +1131,13 @@ function loadRoutesIntoSelector() {
                 routes = data.results;
             } else if (data.results && data.results.features && Array.isArray(data.results.features)) {
                 // GeoJSON FeatureCollection format
-                console.log('Using GeoJSON features format');
+                //console.log('Using GeoJSON features format');
                 routes = data.results.features.map(feature => feature.properties || feature);
             } else if (data.data && Array.isArray(data.data)) {
                 routes = data.data;
             }
             
-            console.log('Parsed routes:', routes);
+            //console.log('Parsed routes:', routes);
             console.log('Routes length:', routes.length);
             routeSelect.innerHTML = '<option value="">Select a route...</option>';
             
