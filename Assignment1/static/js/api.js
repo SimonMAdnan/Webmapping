@@ -27,33 +27,6 @@ class StopAPI {
     }
 }
 
-class VehicleAPI {
-    static get(id) {
-        return fetch(`${API_BASE}/vehicles/${id}/`).then(r => r.json());
-    }
-
-    static list(params = {}) {
-        const queryString = new URLSearchParams(params).toString();
-        return fetch(`${API_BASE}/vehicles/?${queryString}`).then(r => r.json());
-    }
-
-    static nearby(lat, lon, distance = 500) {
-        return fetch(`${API_BASE}/vehicles/nearby/?lat=${lat}&lon=${lon}&distance=${distance}`).then(r => r.json());
-    }
-
-    static inBounds(minLat, maxLat, minLon, maxLon) {
-        return fetch(`${API_BASE}/vehicles/in_bounds/?min_lat=${minLat}&max_lat=${maxLat}&min_lon=${minLon}&max_lon=${maxLon}`).then(r => r.json());
-    }
-
-    static congestion(minLat, maxLat, minLon, maxLon) {
-        return fetch(`${API_BASE}/vehicles/congestion/?min_lat=${minLat}&max_lat=${maxLat}&min_lon=${minLon}&max_lon=${maxLon}`).then(r => r.json());
-    }
-
-    static nearbyStops(vehicleId) {
-        return fetch(`${API_BASE}/vehicles/${vehicleId}/nearby_stops/`).then(r => r.json());
-    }
-}
-
 class RouteAPI {
     static get(id) {
         return fetch(`${API_BASE}/routes/${id}/`).then(r => r.json());

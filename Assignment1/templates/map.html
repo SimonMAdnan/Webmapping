@@ -101,10 +101,10 @@
                         <div class="tab-pane fade show active" id="radiusTab">
                             <div class="form-group">
                                 <label>Query Type</label>
-                                <select id="radiusType" class="form-select form-select-sm" onchange="updateRadiusOptions()">
+                                <select id="radiusType" class="form-select form-select-sm">
                                     <option value="stops">Stops</option>
                                     <option value="routes">Routes</option>
-                                    <option value="both">Both Stops & Routes</option>
+                                    <option value="both">Both (Stops & Routes)</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -131,7 +131,7 @@
                                 <select id="boundsType" class="form-select form-select-sm">
                                     <option value="stops">Stops</option>
                                     <option value="routes">Routes</option>
-                                    <option value="both">Both Stops & Routes</option>
+                                    <option value="both">Both (Stops & Routes)</option>
                                 </select>
                             </div>
                             <div class="form-row">
@@ -164,11 +164,8 @@
                             <div class="form-group">
                                 <label>Query Type</label>
                                 <select id="advancedQueryType" class="form-select form-select-sm" onchange="updateAdvancedOptions()">
-                                    <option value="congestion">Congestion Detection</option>
                                     <option value="route-analysis">Route Analysis</option>
                                     <option value="nearest-stops">Nearest Stops</option>
-                                    <option value="routes-bbox">Routes in Area</option>
-                                    <option value="both-bbox">Both Stops & Routes</option>
                                 </select>
                             </div>
 

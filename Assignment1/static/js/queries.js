@@ -2,20 +2,104 @@
  * Transport API - Spatial Query Execution
  */
 
+// Update temporary markers when bounds input values change
+function updateBoundsMarkers() {
+    const minLat = parseFloat(document.getElementById('bboxMinLat').value);
+    const maxLat = parseFloat(document.getElementById('bboxMaxLat').value);
+    const minLon = parseFloat(document.getElementById('bboxMinLon').value);
+    const maxLon = parseFloat(document.getElementById('bboxMaxLon').value);
+    
+    if (!isNaN(minLat) && !isNaN(minLon)) {
+        if (!window.boundsMarkers) window.boundsMarkers = {};
+        
+        // Create or update point1 marker
+        if (window.boundsMarkers.point1) {
+            window.boundsMarkers.point1.setLatLng([minLat, minLon]);
+        } else {
+            // Create a marker with a label
+            const marker1Icon = L.divIcon({
+                className: 'bounds-marker-label',
+                html: '<div style="background: #9b59b6; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">1</div>',
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            });
+            
+            window.boundsMarkers.point1 = L.marker([minLat, minLon], { icon: marker1Icon })
+                .bindPopup(`<strong>Marker 1</strong><br>Lat: ${minLat.toFixed(4)}<br>Lon: ${minLon.toFixed(4)}`);
+            if (window.queryLayer) {
+                window.queryLayer.addLayer(window.boundsMarkers.point1);
+            }
+        }
+    }
+    
+    if (!isNaN(maxLat) && !isNaN(maxLon)) {
+        if (!window.boundsMarkers) window.boundsMarkers = {};
+        
+        // Create or update point2 marker
+        if (window.boundsMarkers.point2) {
+            window.boundsMarkers.point2.setLatLng([maxLat, maxLon]);
+        } else {
+            // Create a marker with a label
+            const marker2Icon = L.divIcon({
+                className: 'bounds-marker-label',
+                html: '<div style="background: #9b59b6; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">2</div>',
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            });
+            
+            window.boundsMarkers.point2 = L.marker([maxLat, maxLon], { icon: marker2Icon })
+                .bindPopup(`<strong>Marker 2</strong><br>Lat: ${maxLat.toFixed(4)}<br>Lon: ${maxLon.toFixed(4)}`);
+            if (window.queryLayer) {
+                window.queryLayer.addLayer(window.boundsMarkers.point2);
+            }
+        }
+    }
+}
+
+// Add event listeners to bounds input fields
+document.addEventListener('DOMContentLoaded', function() {
+    ['bboxMinLat', 'bboxMaxLat', 'bboxMinLon', 'bboxMaxLon'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('change', updateBoundsMarkers);
+            element.addEventListener('input', updateBoundsMarkers);
+        }
+    });
+});
+
 async function performRadiusSearch() {
-    const lat = parseFloat(document.getElementById('radiusLat').value);
-    const lon = parseFloat(document.getElementById('radiusLon').value);
+    let lat, lon;
+    
+    // Use Marker 1 if it exists, otherwise use input values
+    if (window.boundsMarkers && window.boundsMarkers.point1) {
+        const markerLatLng = window.boundsMarkers.point1.getLatLng();
+        lat = markerLatLng.lat;
+        lon = markerLatLng.lng;
+    } else {
+        lat = parseFloat(document.getElementById('radiusLat').value);
+        lon = parseFloat(document.getElementById('radiusLon').value);
+    }
+    
     const radius = parseInt(document.getElementById('radiusDistance').value);
     const queryType = document.getElementById('radiusType').value;
 
     if (isNaN(lat) || isNaN(lon) || isNaN(radius)) {
-        alert('Please enter valid coordinates and radius');
+        alert('Please enter valid coordinates and radius, or click on the map to create Marker 1');
         return;
     }
 
     try {
         const layer = window.queryLayer || queryLayer;
         layer.clearLayers();
+        
+        // Recreate markers if they exist
+        if (window.boundsMarkers && window.boundsMarkers.point1) {
+            layer.addLayer(window.boundsMarkers.point1);
+        }
+        if (window.boundsMarkers && window.boundsMarkers.point2) {
+            layer.addLayer(window.boundsMarkers.point2);
+        }
+        
         const circle = L.circle([lat, lon], {
             radius: radius,
             color: 'blue',
@@ -30,14 +114,18 @@ async function performRadiusSearch() {
             // For routes, we need to search for shapes/routes near the point
             const distanceKm = radius / 1000;
             const endpoint = `/api/shapes/nearby/?lat=${lat}&lon=${lon}&distance_km=${distanceKm}`;
+            console.log('Fetching routes from radius:', endpoint);
             const response = await fetch(endpoint);
             const data = await response.json();
+            console.log('Radius routes response:', data);
             
             // Add routes directly to layer (don't use displayRouteResults which clears the layer)
             const routesResults = data.results || [];
-            routesResults.forEach(route => {
+            console.log('Routes count:', routesResults.length);
+            routesResults.forEach((route, idx) => {
                 const props = route.properties || route;
                 const coordinates = route.geometry?.coordinates;
+                //console.log(`Route ${idx}:`, {shape_id: props.shape_id, has_coords: !!coordinates, coords_length: coordinates ? coordinates.length : 0});
                 if (coordinates && Array.isArray(coordinates)) {
                     const latLngs = coordinates.map(coord => [coord[1], coord[0]]);
                     const polyline = L.polyline(latLngs, {
@@ -191,36 +279,38 @@ async function performRadiusSearch() {
 }
 
 async function performBoundsSearch() {
-    let minLat = parseFloat(document.getElementById('bboxMinLat').value);
-    let maxLat = parseFloat(document.getElementById('bboxMaxLat').value);
-    let minLon = parseFloat(document.getElementById('bboxMinLon').value);
-    let maxLon = parseFloat(document.getElementById('bboxMaxLon').value);
-    const queryType = document.getElementById('boundsType').value;
-
-    if (isNaN(minLat) || isNaN(maxLat) || isNaN(minLon) || isNaN(maxLon)) {
-        alert('Please enter valid bounding box coordinates');
-        return;
-    }
-
-    // If both markers exist, recalculate bounds from them to ensure correct min/max
+    let minLat, maxLat, minLon, maxLon;
+    
+    // Use markers if they exist, otherwise use input values
     if (window.boundsMarkers && window.boundsMarkers.point1 && window.boundsMarkers.point2) {
         const p1 = window.boundsMarkers.point1.getLatLng();
         const p2 = window.boundsMarkers.point2.getLatLng();
         
-        // Ensure correct min/max ordering
         minLat = Math.min(p1.lat, p2.lat);
         maxLat = Math.max(p1.lat, p2.lat);
         minLon = Math.min(p1.lng, p2.lng);
         maxLon = Math.max(p1.lng, p2.lng);
         
-        console.log(`Recalculated bounds from markers: minLat=${minLat}, maxLat=${maxLat}, minLon=${minLon}, maxLon=${maxLon}`);
+        console.log(`Using markers bounds: minLat=${minLat}, maxLat=${maxLat}, minLon=${minLon}, maxLon=${maxLon}`);
+    } else {
+        minLat = parseFloat(document.getElementById('bboxMinLat').value);
+        maxLat = parseFloat(document.getElementById('bboxMaxLat').value);
+        minLon = parseFloat(document.getElementById('bboxMinLon').value);
+        maxLon = parseFloat(document.getElementById('bboxMaxLon').value);
+    }
+    
+    const queryType = document.getElementById('boundsType').value;
+
+    if (isNaN(minLat) || isNaN(maxLat) || isNaN(minLon) || isNaN(maxLon)) {
+        alert('Please enter valid bounding box coordinates or click on the map to create two markers');
+        return;
     }
 
     try {
         const layer = window.queryLayer || queryLayer;
         layer.clearLayers();
         
-        // Create a separate rectangle that will persist
+        // Create a feature group for the rectangle and markers
         let rectangleLayer = L.featureGroup();
         
         // Draw rectangle with calculated bounds
@@ -236,26 +326,30 @@ async function performBoundsSearch() {
         });
         rectangleLayer.addLayer(rectangle);
         
-        // Re-add the markers on top if they exist
+        // Add the markers on top of the rectangle if they exist
         if (window.boundsMarkers && window.boundsMarkers.point1) rectangleLayer.addLayer(window.boundsMarkers.point1);
         if (window.boundsMarkers && window.boundsMarkers.point2) rectangleLayer.addLayer(window.boundsMarkers.point2);
         
         console.log('Drawing rectangle with bounds:', boundsForRect);
 
-        // Add rectangle layer FIRST so results appear on top
+        // Add rectangle layer with markers to the query layer
         layer.addLayer(rectangleLayer);
 
         if (queryType === 'routes') {
             // For routes, use shapes endpoint
             const endpoint = `/api/shapes/in_bounds/?min_lat=${minLat}&max_lat=${maxLat}&min_lon=${minLon}&max_lon=${maxLon}`;
+            console.log('Fetching routes from bounds:', endpoint);
             const response = await fetch(endpoint);
             const data = await response.json();
+            console.log('Bounds routes response:', data);
             
             // Add routes directly to layer (don't use displayRouteResults which clears the layer)
             const routesResults = data.results || [];
-            routesResults.forEach(route => {
+            console.log('Routes count:', routesResults.length);
+            routesResults.forEach((route, idx) => {
                 const props = route.properties || route;
                 const coordinates = route.geometry?.coordinates;
+                //console.log(`Route ${idx}:`, {shape_id: props.shape_id, has_coords: !!coordinates, coords_length: coordinates ? coordinates.length : 0});
                 if (coordinates && Array.isArray(coordinates)) {
                     const latLngs = coordinates.map(coord => [coord[1], coord[0]]);
                     const polyline = L.polyline(latLngs, {
@@ -413,9 +507,7 @@ async function performAdvancedQuery() {
         let title;
         const layer = window.queryLayer || queryLayer;
         
-        if (queryType === 'congestion') {
-            endpoint = '/api/vehicles/congestion/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
-        } else if (queryType === 'route-analysis') {
+        if (queryType === 'route-analysis') {
             const routeId = document.getElementById('routeSelect').value;
             if (!routeId) {
                 alert('Please select a route');
@@ -528,9 +620,7 @@ async function performAdvancedQuery() {
         const response = await fetch(endpoint);
         const data = await response.json();
 
-        if (queryType === 'congestion') {
-            displayCongestionResults(data.results);
-        } else if (queryType === 'routes-bbox') {
+        if (queryType === 'routes-bbox') {
             // Add routes directly to layer (don't use displayRouteResults which clears the layer)
             const routesResults = data.results || [];
             routesResults.forEach(route => {
@@ -596,7 +686,7 @@ function displayResults(results, title, centerLat, centerLon) {
 
                 const popupContent = `
                     <div class="popup-content">
-                        <strong>${props.stop_name || props.vehicle_id || props.route_short_name}</strong><br>
+                        <strong>${props.stop_name || props.route_short_name}</strong><br>
                         ${props.stop_code ? 'Code: ' + props.stop_code + '<br>' : ''}
                         ${props.stop_type ? 'Type: ' + props.stop_type + '<br>' : ''}
                         ${props.speed ? 'Speed: ' + props.speed.toFixed(1) + ' km/h<br>' : ''}
@@ -616,44 +706,6 @@ function displayResults(results, title, centerLat, centerLon) {
     displayResultsList(results, title);
 }
 
-function displayCongestionResults(clusters) {
-    const layer = window.queryLayer || queryLayer;
-    layer.clearLayers();
-
-    clusters.forEach((cluster, index) => {
-        if (cluster.center && cluster.center.coordinates) {
-            const coords = cluster.center.coordinates;
-            const severity = cluster.severity || 'medium';
-            const radius = cluster.radius || 100;
-
-            const circle = L.circle([coords[1], coords[0]], {
-                radius: radius,
-                color: severity === 'high' ? 'red' : severity === 'medium' ? 'orange' : 'yellow',
-                fill: true,
-                fillColor: severity === 'high' ? 'red' : severity === 'medium' ? 'orange' : 'yellow',
-                fillOpacity: 0.3,
-                weight: 2
-            });
-
-            const popupContent = `
-                <div class="popup-content">
-                    <strong>Congestion Zone ${index + 1}</strong><br>
-                    Severity: <span class="badge badge-${severity}">${severity.toUpperCase()}</span><br>
-                    Vehicles: ${cluster.vehicle_count || 0}<br>
-                    Avg Speed: ${cluster.avg_speed ? cluster.avg_speed.toFixed(1) : '--'} km/h
-                </div>
-            `;
-            circle.bindPopup(popupContent);
-            layer.addLayer(circle);
-        }
-    });
-
-    if (layer.getLayers().length > 0) {
-        map.fitBounds(layer.getBounds(), { padding: [50, 50] });
-    }
-
-    displayResultsList(clusters, `Congestion Analysis: ${clusters.length} zones detected`);
-}
 
 function displayBothResults(stops, routes) {
     const resultsDiv = document.getElementById('queryResults');
@@ -780,7 +832,7 @@ function displayResultsList(results, title) {
         // Handle GeoJSON feature format
         const props = result.properties || result;
         
-        let name = props.stop_name || props.vehicle_id || props.route_short_name || `Result ${index + 1}`;
+        let name = props.stop_name || props.route_short_name || `Result ${index + 1}`;
         let lat = 0, lon = 0;
         
         // Handle different geometry types
@@ -814,7 +866,6 @@ function displayResultsList(results, title) {
         if (props.route_type) details.push(`Type: ${getRouteTypeName(props.route_type)}`);
         if (props.speed) details.push(`Speed: ${props.speed.toFixed(1)} km/h`);
         if (props.status) details.push(`Status: ${props.status}`);
-        if (props.vehicle_count) details.push(`Vehicles: ${props.vehicle_count}`);
         if (props.avg_speed) details.push(`Avg Speed: ${props.avg_speed.toFixed(1)} km/h`);
         if (props.shape_id) details.push(`Shape ID: ${props.shape_id}`);
 
@@ -837,7 +888,7 @@ function displayResultsList(results, title) {
             // Handle GeoJSON feature format
             const props = result.properties || result;
             
-            let name = props.stop_name || props.vehicle_id || props.route_short_name || `Result ${index + 4}`;
+            let name = props.stop_name || props.route_short_name || `Result ${index + 4}`;
             let lat = 0, lon = 0;
             
             // Handle different geometry types
@@ -870,7 +921,6 @@ function displayResultsList(results, title) {
             if (props.route_type) details.push(`Type: ${getRouteTypeName(props.route_type)}`);
             if (props.speed) details.push(`Speed: ${props.speed.toFixed(1)} km/h`);
             if (props.status) details.push(`Status: ${props.status}`);
-            if (props.vehicle_count) details.push(`Vehicles: ${props.vehicle_count}`);
             if (props.avg_speed) details.push(`Avg Speed: ${props.avg_speed.toFixed(1)} km/h`);
             if (props.shape_id) details.push(`Shape ID: ${props.shape_id}`);
 

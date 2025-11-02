@@ -1,5 +1,5 @@
 from django.contrib import admin
-from transport_api.models import Stop, Route, Vehicle, Agency, Calendar, Trip, StopTime, Shape, SpatialQuery
+from transport_api.models import Stop, Route, Agency, Calendar, Trip, StopTime, Shape, SpatialQuery
 
 
 @admin.register(Stop)
@@ -50,19 +50,10 @@ class StopTimeAdmin(admin.ModelAdmin):
 
 @admin.register(Shape)
 class ShapeAdmin(admin.ModelAdmin):
-    list_display = ('shape_id', 'sequence', 'created_at')
+    list_display = ('shape_id', 'sequence')
     search_fields = ('shape_id',)
     list_filter = ('shape_id',)
     ordering = ('shape_id', 'sequence')
-
-
-@admin.register(Vehicle)
-class VehicleAdmin(admin.ModelAdmin):
-    list_display = ('vehicle_id', 'route', 'bearing', 'speed', 'status', 'timestamp')
-    search_fields = ('vehicle_id',)
-    list_filter = ('status', 'route', 'timestamp')
-    readonly_fields = ('created_at', 'updated_at')
-    ordering = ('-timestamp',)
 
 
 @admin.register(SpatialQuery)

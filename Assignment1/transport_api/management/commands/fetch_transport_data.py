@@ -1,10 +1,8 @@
 """
-Management command to fetch transport data from local GTFS static files (primary source)
-and real-time vehicle data from National Transport API (optional).
+Management command to fetch transport data from local GTFS static files.
 
 Usage: 
   python manage.py fetch_transport_data                    # Load from GTFS files
-  python manage.py fetch_transport_data --api-key YOUR_KEY # Also fetch live data
   python manage.py fetch_transport_data --stops --routes   # Load only stops and routes from GTFS
 """
 import os
@@ -15,7 +13,7 @@ from decouple import config
 from django.core.management.base import BaseCommand
 from django.contrib.gis.geos import Point
 from django.utils import timezone
-from transport_api.models import Vehicle, Route, Stop
+from transport_api.models import Route, Stop
 from transport_api.gtfs_parser import GTFSParser
 
 
@@ -23,9 +21,8 @@ class Command(BaseCommand):
     help = 'Fetch transport data from National Transport API'
 
     def add_arguments(self, parser):
-        parser.add_argument('--api-key', type=str, help='National Transport API key')
+        parser.add_argument('--api-key', type=str, help='(Deprecated - no longer used)')
         parser.add_argument('--stops', action='store_true', help='Fetch stops only')
-        parser.add_argument('--vehicles', action='store_true', help='Fetch vehicles only')
         parser.add_argument('--routes', action='store_true', help='Fetch routes only')
 
     def handle(self, *args, **options):
@@ -66,11 +63,6 @@ class Command(BaseCommand):
                     self.fetch_stops_from_gtfs(parser)
                 if options['routes']:
                     self.fetch_routes_from_gtfs(parser)
-                if options['vehicles']:
-                    if api_key and api_key != 'your_api_key_here':
-                        self.fetch_vehicles(api_key)
-                    else:
-                        self.stdout.write(self.style.WARNING('Skipping live vehicles: No API key found'))
         
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'ERROR: {str(e)}'))
@@ -155,100 +147,6 @@ class Command(BaseCommand):
         
         self.stdout.write(self.style.SUCCESS(f'Stops: {created_count} created, {updated_count} updated'))
 
-    def fetch_vehicles(self, api_key):
-        """Fetch vehicles from National Transport API."""
-        self.stdout.write('Fetching vehicles...')
-        
-        # Try multiple endpoint variations
-        endpoints = [
-            'https://api.nationaltransport.ie/gtfsr/v2/gtfsr/Vehicles',
-            'https://api.nationaltransport.ie/gtfsr/v2/gtfsr/VehiclePositions',
-            'https://api.nationaltransport.ie/gtfsr/v2/Vehicles',
-            'https://api.nationaltransport.ie/v2/gtfsr/Vehicles',
-        ]
-        
-        headers = {'x-api-key': api_key}
-        data = None
-        
-        for url in endpoints:
-            try:
-                response = requests.get(url, headers=headers, timeout=30)
-                response.raise_for_status()
-                data = response.json()
-                self.stdout.write(f'Successfully fetched vehicles from {url}')
-                break
-            except requests.exceptions.RequestException as e:
-                self.stdout.write(self.style.WARNING(f'Endpoint {url} failed: {str(e)}'))
-                continue
-        
-        if data is None:
-            self.stdout.write(self.style.WARNING('Could not fetch vehicles - all endpoints failed, skipping...'))
-            return
-        
-        # Handle different response formats
-        entities = (
-            data.get('entity', []) or 
-            data.get('vehicles', []) or 
-            data.get('data', []) or 
-            []
-        )
-        
-        if not entities and isinstance(data, list):
-            entities = data
-            
-        created_count = 0
-        updated_count = 0
-        
-        for entity in entities:
-            try:
-                vehicle_data = entity.get('vehicle', {}) if 'vehicle' in entity else entity
-                position = vehicle_data.get('position', {})
-                trip = vehicle_data.get('trip', {})
-                
-                vehicle_id = vehicle_data.get('vehicle', {}).get('id') or vehicle_data.get('id')
-                if not vehicle_id:
-                    continue
-                
-                location = Point(
-                    float(position.get('longitude', 0)),
-                    float(position.get('latitude', 0))
-                )
-                
-                route = None
-                route_id = trip.get('route_id')
-                if route_id:
-                    route, _ = Route.objects.get_or_create(
-                        route_id=route_id,
-                        defaults={
-                            'route_short_name': route_id,
-                            'route_long_name': route_id,
-                            'route_type': '3',
-                        }
-                    )
-                
-                vehicle, created = Vehicle.objects.update_or_create(
-                    vehicle_id=vehicle_id,
-                    defaults={
-                        'route': route,
-                        'location': location,
-                        'bearing': position.get('bearing'),
-                        'speed': position.get('speed'),
-                        'occupancy': vehicle_data.get('occupancy_status'),
-                        'status': 'in_transit',
-                        'timestamp': timezone.now(),
-                    }
-                )
-                
-                if created:
-                    created_count += 1
-                else:
-                    updated_count += 1
-                    
-            except Exception as e:
-                self.stdout.write(self.style.WARNING(f'Error processing vehicle: {str(e)}'))
-                continue
-        
-        self.stdout.write(self.style.SUCCESS(f'Vehicles: {created_count} created, {updated_count} updated'))
 
     def fetch_routes(self, api_key):
         """Fetch trip updates from National Transport API."""

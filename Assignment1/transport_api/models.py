@@ -218,57 +218,6 @@ class Stop(models.Model):
         ).exclude(id=self.id).order_by('location__distance_from', 'stop_name')
 
 
-class Vehicle(models.Model):
-    """
-    Represents a real-time vehicle/transit unit.
-    Data fetched from National Transport API.
-    """
-    vehicle_id = models.CharField(max_length=100, unique=True)
-    route = models.ForeignKey(Route, on_delete=models.SET_NULL, null=True, blank=True, related_name='vehicles')
-    location = models.PointField()
-    bearing = models.FloatField(null=True, blank=True)
-    speed = models.FloatField(null=True, blank=True)
-    occupancy = models.IntegerField(null=True, blank=True)
-    status = models.CharField(
-        max_length=50,
-        choices=[
-            ('in_transit', 'In Transit'),
-            ('stopped', 'Stopped'),
-            ('delayed', 'Delayed'),
-            ('off_route', 'Off Route'),
-        ],
-        default='in_transit'
-    )
-    timestamp = models.DateTimeField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ['-timestamp']
-        indexes = [
-            models.Index(fields=['vehicle_id']),
-            models.Index(fields=['route']),
-            models.Index(fields=['-timestamp']),
-        ]
-
-    def __str__(self):
-        return f"{self.vehicle_id} on {self.route}"
-
-    def get_nearby_vehicles(self, distance_km=2):
-        """Spatial query: Find vehicles within a certain distance."""
-        from django.contrib.gis.measure import D
-        return Vehicle.objects.filter(
-            location__distance_lte=(self.location, D(km=distance_km))
-        ).exclude(id=self.id).order_by('location__distance_from')
-
-    def get_nearby_stops(self, distance_km=0.5):
-        """Spatial query: Find stops near this vehicle."""
-        from django.contrib.gis.measure import D
-        return Stop.objects.filter(
-            location__distance_lte=(self.location, D(km=distance_km))
-        ).order_by('location__distance_from')
-
-
 class SpatialQuery(models.Model):
     """
     Saved spatial queries for analysis and reporting.

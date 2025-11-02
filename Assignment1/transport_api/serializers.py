@@ -3,7 +3,7 @@ Django REST Framework serializers for transport API with spatial support.
 """
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 from rest_framework import serializers
-from transport_api.models import Vehicle, Route, Stop, SpatialQuery
+from transport_api.models import Route, Stop, SpatialQuery
 
 
 class RouteSerializer(GeoFeatureModelSerializer):
@@ -48,18 +48,6 @@ class StopSerializer(serializers.ModelSerializer):
     class Meta:
         model = Stop
         fields = ['type', 'geometry', 'properties', 'id']
-
-
-class VehicleSerializer(GeoFeatureModelSerializer):
-    """Serializer for Vehicle model with real-time location data."""
-    route_short_name = serializers.CharField(source='route.route_short_name', read_only=True)
-    route_long_name = serializers.CharField(source='route.route_long_name', read_only=True)
-    
-    class Meta:
-        model = Vehicle
-        geo_field = 'location'
-        fields = ['id', 'vehicle_id', 'route', 'route_short_name', 'route_long_name',
-                  'bearing', 'speed', 'occupancy', 'status', 'timestamp', 'created_at', 'updated_at']
 
 
 class SpatialQuerySerializer(GeoFeatureModelSerializer):

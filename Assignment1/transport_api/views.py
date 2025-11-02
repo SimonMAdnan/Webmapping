@@ -11,9 +11,9 @@ from django.contrib.gis.geos import Point, Polygon
 from django.contrib.gis.db.models.functions import Distance
 from django.views.generic import TemplateView
 from django.shortcuts import render
-from transport_api.models import Vehicle, Route, Stop, SpatialQuery
+from transport_api.models import Route, Stop, SpatialQuery
 from transport_api.serializers import (
-    VehicleSerializer, RouteSerializer, StopSerializer, 
+    RouteSerializer, StopSerializer, 
     SpatialQuerySerializer, SpatialSearchSerializer,
     ShapeSerializer, TripScheduleSerializer
 )
@@ -281,7 +281,7 @@ class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
         """Find shapes near a point. Params: lat, lon, distance_km"""
         lat = request.query_params.get('lat')
         lon = request.query_params.get('lon')
-        distance_km = float(request.query_params.get('distance_km', 1.0))
+        distance_km = float(request.query_params.get('distance_km', 2.0))
 
         if not lat or not lon:
             return Response({'error': 'lat and lon required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -289,15 +289,13 @@ class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
         try:
             lat, lon = float(lat), float(lon)
             point = Point(lon, lat)
-            
-            # Find shapes within the distance
             shapes = Shape.objects.filter(
                 geometry__distance_lte=(point, D(km=distance_km))
             ).annotate(
                 distance=Distance('geometry', point)
             ).order_by('distance')
             
-            # Preload trips with routes
+            # Preload route info for all shapes
             shape_ids = [s.shape_id for s in shapes]
             trips_by_shape = {}
             for trip in Trip.objects.filter(shape_id__in=shape_ids).select_related('route').only(
@@ -360,11 +358,10 @@ class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
                 (min_lon, max_lat),
                 (min_lon, min_lat),
             ])
-            
-            # Find shapes that intersect with the bounds
+            # Use intersects instead of within for LineStrings - returns shapes that touch or cross the bounds
             shapes = Shape.objects.filter(geometry__intersects=bounds)
             
-            # Preload trips with routes
+            # Preload route info for all shapes
             shape_ids = [s.shape_id for s in shapes]
             trips_by_shape = {}
             for trip in Trip.objects.filter(shape_id__in=shape_ids).select_related('route').only(
@@ -397,149 +394,12 @@ class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
                     features.append(feature)
             
             return Response({
-                'count': len(features),
-                'bounds': {
-                    'min_lat': min_lat,
-                    'max_lat': max_lat,
-                    'min_lon': min_lon,
-                    'max_lon': max_lon,
-                },
+                'count': shapes.count(),
+                'bounds': {'min_lat': min_lat, 'max_lat': max_lat, 'min_lon': min_lon, 'max_lon': max_lon},
                 'results': features
             })
         except (ValueError, TypeError) as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-
-class VehicleViewSet(viewsets.ModelViewSet):
-    """ViewSet for real-time vehicle tracking with spatial queries."""
-    queryset = Vehicle.objects.all()
-    serializer_class = VehicleSerializer
-    filter_backends = [SearchFilter, OrderingFilter, DjangoFilterBackend]
-    search_fields = ['vehicle_id', 'route__route_short_name']
-    ordering_fields = ['timestamp', 'speed']
-    ordering = ['-timestamp']
-    filterset_fields = ['route', 'status']
-
-    @action(detail=False, methods=['get'])
-    def nearby_vehicles(self, request):
-        """Find vehicles near a point. Params: lat, lon, distance_km"""
-        lat = request.query_params.get('lat')
-        lon = request.query_params.get('lon')
-        distance_km = float(request.query_params.get('distance_km', 2.0))
-
-        if not lat or not lon:
-            return Response({'error': 'lat and lon required'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            lat, lon = float(lat), float(lon)
-            point = Point(lon, lat)
-            vehicles = Vehicle.objects.filter(
-                location__distance_lte=(point, D(km=distance_km))
-            ).annotate(
-                distance=Distance('location', point)
-            ).order_by('distance')
-            
-            serializer = self.get_serializer(vehicles, many=True)
-            return Response({
-                'count': vehicles.count(),
-                'center': {'lat': lat, 'lon': lon},
-                'radius_km': distance_km,
-                'results': serializer.data
-            })
-        except (ValueError, TypeError) as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=False, methods=['get'])
-    def in_bounds(self, request):
-        """Get vehicles within a bounding box. Params: min_lat, max_lat, min_lon, max_lon"""
-        min_lat = request.query_params.get('min_lat')
-        max_lat = request.query_params.get('max_lat')
-        min_lon = request.query_params.get('min_lon')
-        max_lon = request.query_params.get('max_lon')
-
-        if not all([min_lat, max_lat, min_lon, max_lon]):
-            return Response({'error': 'All bounds parameters required'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            min_lat, max_lat = float(min_lat), float(max_lat)
-            min_lon, max_lon = float(min_lon), float(max_lon)
-            
-            bounds = Polygon([
-                (min_lon, min_lat),
-                (max_lon, min_lat),
-                (max_lon, max_lat),
-                (min_lon, max_lat),
-                (min_lon, min_lat),
-            ])
-            vehicles = Vehicle.objects.filter(location__within=bounds)
-            serializer = self.get_serializer(vehicles, many=True)
-            return Response({
-                'count': vehicles.count(),
-                'bounds': {'min_lat': min_lat, 'max_lat': max_lat, 'min_lon': min_lon, 'max_lon': max_lon},
-                'results': serializer.data
-            })
-        except (ValueError, TypeError) as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=False, methods=['get'])
-    def congestion(self, request):
-        """Identify congestion areas (clusters of slow vehicles)."""
-        min_vehicles = int(request.query_params.get('min_vehicles', 3))
-        max_speed_kmh = float(request.query_params.get('max_speed_kmh', 10.0))
-        distance_km = float(request.query_params.get('distance_km', 0.5))
-
-        slow_vehicles = Vehicle.objects.filter(
-            speed__lte=max_speed_kmh, status='in_transit'
-        ) | Vehicle.objects.filter(speed__isnull=True, status='in_transit')
-
-        congestion_zones = []
-        processed = set()
-        
-        for vehicle in slow_vehicles:
-            if vehicle.id in processed:
-                continue
-            
-            nearby = slow_vehicles.filter(
-                location__distance_lte=(vehicle.location, D(km=distance_km))
-            ).exclude(id__in=processed)
-            
-            if nearby.count() >= min_vehicles:
-                serializer = self.get_serializer(nearby, many=True)
-                congestion_zones.append({
-                    'center': {
-                        'lat': vehicle.location.y,
-                        'lon': vehicle.location.x
-                    },
-                    'vehicle_count': nearby.count(),
-                    'max_speed_kmh': max_speed_kmh,
-                    'vehicles': serializer.data
-                })
-                processed.update(nearby.values_list('id', flat=True))
-
-        return Response({
-            'congestion_zones': congestion_zones,
-            'total_slow_vehicles': slow_vehicles.count()
-        })
-
-    @action(detail=True, methods=['get'])
-    def nearby_stops(self, request, pk=None):
-        """Get stops near a vehicle."""
-        vehicle = self.get_object()
-        distance_km = float(request.query_params.get('distance_km', 0.5))
-        
-        stops = Stop.objects.filter(
-            location__distance_lte=(vehicle.location, D(km=distance_km))
-        ).annotate(
-            distance=Distance('location', vehicle.location)
-        ).order_by('distance')
-        
-        serializer = StopSerializer(stops, many=True)
-        return Response({
-            'vehicle': VehicleSerializer(vehicle).data,
-            'nearby_stops_count': stops.count(),
-            'distance_km': distance_km,
-            'results': serializer.data
-        })
 
 
 class RouteViewSet(viewsets.ModelViewSet):
