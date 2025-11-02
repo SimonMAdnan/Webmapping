@@ -1,24 +1,59 @@
 /**
  * Transport API - Map Initialization and Management
+ * 
+ * This module handles:
+ * - Leaflet map initialization and configuration
+ * - Layer management (stops, routes, shapes, query results)
+ * - Local storage caching of GTFS data
+ * - Map event handlers (click, moveend)
+ * - Data loading and updates
+ * - Spatial query integration
  */
 
+// ===== GLOBAL VARIABLES =====
+
+/** @type {L.Map} Leaflet map instance */
 let map;
+
+/** @type {L.FeatureGroup} Layer for stop markers */
 let stopMarkers = L.featureGroup();
+
+/** @type {L.FeatureGroup} Layer for route lines */
 let routeLayer = L.featureGroup();
+
+/** @type {L.FeatureGroup} Layer for query result markers */
 let queryLayer = L.featureGroup();
+
+/** @type {L.Control.Layers} Layer control instance */
 let layerControl = null;
 
-// Track loaded stops to avoid clearing
+// ===== CACHE TRACKING =====
+
+/** Track loaded stops to avoid clearing on multiple loads */
 let loadedStops = new Set();
 
-// Track if routes have been loaded
+/** Track if routes have been loaded into memory */
 let routesLoaded = false;
 
-// Cache settings
-const CACHE_KEY_STOPS = 'transport_stops_cache';
-const CACHE_KEY_SHAPES = 'transport_shapes_cache';
-const CACHE_EXPIRY_MINUTES = 60; // Cache for 1 hour
+// ===== CACHE SETTINGS =====
 
+/** Local storage key for cached stops data */
+const CACHE_KEY_STOPS = 'transport_stops_cache';
+
+/** Local storage key for cached shapes data */
+const CACHE_KEY_SHAPES = 'transport_shapes_cache';
+
+/** Cache expiry time in minutes (1 hour) */
+const CACHE_EXPIRY_MINUTES = 60;
+
+// ===== CACHE FUNCTIONS =====
+
+/**
+ * Retrieve cached stops data from browser local storage
+ * Checks cache validity before returning
+ * 
+ * @returns {Array|null} Array of stop features or null if cache invalid/expired
+ */
 function getCachedStops() {
     try {
         const cached = localStorage.getItem(CACHE_KEY_STOPS);
@@ -42,6 +77,12 @@ function getCachedStops() {
     }
 }
 
+/**
+ * Store stops data in browser local storage with timestamp
+ * Used to avoid repeated API calls for the same data
+ * 
+ * @param {Array} stops - Array of stop features to cache
+ */
 function cacheStops(stops) {
     try {
         const data = {
@@ -186,10 +227,29 @@ async function cacheShapesInIndexedDB(shapes) {
     }
 }
 
+// ===== MAP INITIALIZATION =====
+
+/** 
+ * Initialize the map when DOM is fully loaded
+ * Event listener for DOMContentLoaded triggers initMap function
+ */
 window.addEventListener('DOMContentLoaded', initMap);
 
+/**
+ * Main map initialization function
+ * 
+ * Responsibilities:
+ * 1. Create Leaflet map instance centered on Dublin
+ * 2. Initialize tile layers and layer control
+ * 3. Set up event listeners (map clicks, move events)
+ * 4. Load initial data (routes, stops, shapes)
+ * 5. Update statistics
+ */
 function initMap() {
     console.log('initMap called');
+    
+    // ===== MAP CENTER POINT =====
+    /** Dublin City Center coordinates (lat, lon) */
     const dublinLat = 53.3498;
     const dublinLon = -6.2603;
 

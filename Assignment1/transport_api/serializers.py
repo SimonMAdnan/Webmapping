@@ -1,5 +1,11 @@
 """
 Django REST Framework serializers for transport API with spatial support.
+
+Serializers handle:
+- Data transformation between models and JSON/GeoJSON
+- GeoJSON Feature format generation for map visualization
+- Type hints for API schema generation
+- Distance calculation for spatial queries
 """
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 from rest_framework import serializers
@@ -10,7 +16,12 @@ from typing import Dict, Any, Optional
 
 
 class RouteSerializer(GeoFeatureModelSerializer):
-    """Serializer for Route model with GeoJSON support."""
+    """
+    Serializer for Route model with GeoJSON support.
+    
+    Converts Route objects to GeoJSON Feature format with geometry.
+    Used for rendering route lines on the map.
+    """
     class Meta:
         model = Route
         geo_field = 'geometry'
@@ -19,7 +30,17 @@ class RouteSerializer(GeoFeatureModelSerializer):
 
 
 class StopSerializer(serializers.ModelSerializer):
-    """Serializer for Stop model - simple GeoJSON Feature format."""
+    """
+    Serializer for Stop model - GeoJSON Feature format.
+    
+    Converts Stop objects to GeoJSON Feature format with:
+    - Point geometry (longitude, latitude)
+    - Stop properties (name, code, type, etc.)
+    - Optional distance field (for spatial queries)
+    - Accessibility information
+    
+    Handles both regular list output and spatial query results.
+    """
     type = serializers.SerializerMethodField()
     geometry = serializers.SerializerMethodField()
     properties = serializers.SerializerMethodField()
@@ -70,7 +91,14 @@ class StopSerializer(serializers.ModelSerializer):
 
 
 class SpatialQuerySerializer(GeoFeatureModelSerializer):
-    """Serializer for saved spatial queries with geometry."""
+    """
+    Serializer for saved spatial queries with geometry.
+    
+    Stores and retrieves spatial query definitions with:
+    - Query geometry (point, polygon, or bounding box)
+    - Query type and parameters
+    - Creator information and timestamps
+    """
     class Meta:
         model = SpatialQuery
         geo_field = 'geometry'
@@ -111,8 +139,17 @@ class SpatialSearchSerializer(serializers.Serializer):
         return data
 
 
-class ShapeSerializer(serializers.ModelSerializer):
-    """Serializer for route shapes as GeoJSON LineStrings."""
+class ShapeSerializer(serializers.Serializer):
+    """
+    Serializer for route shapes as GeoJSON LineStrings.
+    
+    Converts Shape objects to GeoJSON Feature format with:
+    - LineString geometry (sequence of lat/lon coordinates)
+    - Associated route information
+    - Route type and short name for categorization
+    
+    Used for rendering route paths on the map.
+    """
     type = serializers.SerializerMethodField()
     geometry = serializers.SerializerMethodField()
     properties = serializers.SerializerMethodField()
@@ -155,7 +192,16 @@ class ShapeSerializer(serializers.ModelSerializer):
 
 
 class TripScheduleSerializer(serializers.Serializer):
-    """Serializer for trip schedules at a specific stop."""
+    """
+    Serializer for trip schedules at a specific stop.
+    
+    Provides schedule information for trips passing through a stop:
+    - Route and trip identifiers
+    - Arrival and departure times
+    - Stop sequence (order within route)
+    
+    Used for displaying transit schedules in the UI.
+    """
     trip_id = serializers.CharField()
     route_id = serializers.CharField()
     route_short_name = serializers.CharField()

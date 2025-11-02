@@ -22,7 +22,15 @@ from transport_api.models import Trip, StopTime, Shape
 
 
 class MapView(TemplateView):
-    """Main map view with Leaflet integration."""
+    """
+    Main web map view with Leaflet integration.
+    
+    Renders the interactive map interface with:
+    - Leaflet.js for mapping
+    - Base map tiles (OpenStreetMap, etc.)
+    - Layer controls for stops, routes, shapes
+    - Spatial query interface (radius, bounds, k-nearest, on-route)
+    """
     template_name = 'map.html'
     
     def get_context_data(self, **kwargs):
@@ -32,7 +40,14 @@ class MapView(TemplateView):
 
 
 class BlankMapView(TemplateView):
-    """Blank map view with no data loaded - for clean development."""
+    """
+    Blank map view with no data loaded.
+    
+    Useful for development and testing:
+    - Clean starting point without pre-loaded data
+    - Faster initial page load
+    - For debugging and performance testing
+    """
     template_name = 'blank_map.html'
     
     def get_context_data(self, **kwargs):
@@ -40,7 +55,19 @@ class BlankMapView(TemplateView):
         return context
 
 class StopViewSet(viewsets.ModelViewSet):
-    """ViewSet for public transport stops with spatial queries."""
+    """
+    ViewSet for public transport stops with advanced spatial queries.
+    
+    Provides endpoints:
+    - List all stops with search and filtering
+    - Nearby stops - find within distance radius
+    - In bounds - find within bounding box
+    - K-nearest - find k closest stops
+    - On route - get all stops on a specific route
+    - Schedules - get trip schedule for a stop
+    
+    All spatial queries use PostGIS for efficient geographic lookups.
+    """
     queryset = Stop.objects.all()
     serializer_class = StopSerializer
     filter_backends = [SearchFilter, OrderingFilter, DjangoFilterBackend]
@@ -272,7 +299,18 @@ class StopViewSet(viewsets.ModelViewSet):
 
 
 class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet for route shapes as GeoJSON LineStrings."""
+    """
+    ViewSet for route shapes as GeoJSON LineStrings.
+    
+    Read-only endpoints providing:
+    - List all route shapes with geometry
+    - Find shapes near a point
+    - Find shapes within bounding box
+    - Get trips using a specific shape
+    - Get detailed trip information with schedules
+    
+    Shapes represent the actual path that routes follow.
+    """
     queryset = Shape.objects.all()
     serializer_class = ShapeSerializer
     pagination_class = None  # No pagination for shapes
@@ -516,7 +554,20 @@ class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class RouteViewSet(viewsets.ModelViewSet):
-    """ViewSet for transit routes with spatial geometry."""
+    """
+    ViewSet for transit routes with spatial geometry.
+    
+    Provides endpoints:
+    - List all routes with filtering by type and operator
+    - Get route details with geometry
+    - Search routes by name
+    
+    Routes include:
+    - Route ID, short name, long name
+    - Route type (bus, rail, tram, ferry)
+    - Operator/agency information
+    - Route geometry (LineString of route path)
+    """
     queryset = Route.objects.all()
     serializer_class = RouteSerializer
     filter_backends = [SearchFilter, OrderingFilter, DjangoFilterBackend]
@@ -527,7 +578,16 @@ class RouteViewSet(viewsets.ModelViewSet):
 
 
 class SpatialQueryViewSet(viewsets.ModelViewSet):
-    """ViewSet for managing saved spatial queries."""
+    """
+    ViewSet for managing saved spatial queries.
+    
+    Allows users to:
+    - Save spatial query definitions
+    - Name and describe queries
+    - Store query geometry (point, polygon, bounds)
+    - Track query parameters and results
+    - Organize queries with timestamps
+    """
     queryset = SpatialQuery.objects.all()
     serializer_class = SpatialQuerySerializer
     filter_backends = [SearchFilter, OrderingFilter, DjangoFilterBackend]

@@ -1,8 +1,20 @@
 /**
  * Transport API - Map Layers Configuration
- * Multiple tile layer providers and layer controls
+ * 
+ * This module manages:
+ * - Base tile layer providers (OpenStreetMap, Satellite, Terrain, CartoDB)
+ * - Feature overlay layers (Stops, Routes, Shapes)
+ * - Layer control UI
+ * - Route type-specific layer filtering
  */
 
+// ===== BASE TILE LAYERS =====
+
+/** 
+ * Configuration for all available base tile layers
+ * Each layer has attribution, zoom limits, and provider information
+ * Only one can be active at a time
+ */
 // Define different tile layers
 const tileLayers = {
     'OpenStreetMap': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

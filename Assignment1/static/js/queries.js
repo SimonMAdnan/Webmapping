@@ -1,8 +1,21 @@
 /**
  * Transport API - Spatial Query Execution
+ * 
+ * This module handles:
+ * - Radius search queries (find stops within distance)
+ * - Bounding box queries (find stops in rectangular area)
+ * - Advanced queries (k-nearest, stops on route)
+ * - Result display and pagination
+ * - Map marker and route visualization
+ * - API communication with backend
  */
 
-// Update temporary markers when bounds input values change
+// ===== BOUNDS QUERY HELPERS =====
+
+/**
+ * Update temporary marker positions when bounds input values change
+ * Shows visual feedback as user enters coordinates
+ */
 function updateBoundsMarkers() {
     const minLat = parseFloat(document.getElementById('bboxMinLat').value);
     const maxLat = parseFloat(document.getElementById('bboxMaxLat').value);
