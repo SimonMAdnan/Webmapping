@@ -320,6 +320,9 @@ async function loadStops() {
             }
         });
         console.log('Stops loaded successfully. Total unique stops:', loadedStops.size);
+        
+        // Update statistics with loaded stops
+        updateStatistics();
     } catch (error) {
         console.error('Error loading stops:', error);
     }
@@ -404,14 +407,24 @@ function updateMapBounds() {
 
 async function updateStatistics() {
     try {
-        const stopsResp = await fetch('/api/stops/?limit=1');
-        const routesResp = await fetch('/api/routes/?limit=1');
-
-        const stopsData = await stopsResp.json();
-        const routesData = await routesResp.json();
-
-        document.getElementById('stopCount').textContent = stopsData.count || 0;
-        document.getElementById('routeCount').textContent = routesData.count || 0;
+        // Count loaded stops from the layer
+        const stopsLayer = window.featureLayers['Stops'] || window.stopMarkersLayer;
+        const stopCount = stopsLayer ? stopsLayer.getLayers().length : 0;
+        
+        // Count loaded routes from all shape layers
+        let routeCount = 0;
+        const shapeLayerNames = ['Shapes - Bus', 'Shapes - Rail', 'Shapes - Tram', 'Shapes - Ferry', 'Shapes - Other'];
+        shapeLayerNames.forEach(layerName => {
+            const layer = window.featureLayers[layerName];
+            if (layer) {
+                routeCount += layer.getLayers().length;
+            }
+        });
+        
+        document.getElementById('stopCount').textContent = stopCount;
+        document.getElementById('routeCount').textContent = routeCount;
+        
+        console.log(`Updated statistics: ${stopCount} stops, ${routeCount} routes`);
     } catch (error) {
         console.error('Error updating statistics:', error);
     }
@@ -993,6 +1006,9 @@ async function loadRoutesWithTripsAndServices() {
         
         // Mark routes as loaded
         routesLoaded = true;
+        
+        // Update statistics with loaded routes
+        updateStatistics();
     } catch (error) {
         console.error('Error loading routes:', error);
         if (spinner) spinner.style.display = 'none';

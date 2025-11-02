@@ -50,10 +50,10 @@ class StopTimeAdmin(admin.ModelAdmin):
 
 @admin.register(Shape)
 class ShapeAdmin(admin.ModelAdmin):
-    list_display = ('shape_id', 'geometry')
+    list_display = ('shape_id', 'sequence', 'created_at')
     search_fields = ('shape_id',)
     list_filter = ('shape_id',)
-    ordering = ('shape_id',)
+    ordering = ('shape_id', 'sequence')
 
 
 @admin.register(Vehicle)
