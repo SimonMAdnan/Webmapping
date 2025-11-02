@@ -3,7 +3,10 @@ Django REST Framework serializers for transport API with spatial support.
 """
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 from rest_framework import serializers
-from transport_api.models import Route, Stop, SpatialQuery
+from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.types import OpenApiTypes
+from transport_api.models import Route, Stop, SpatialQuery, Shape
+from typing import Dict, Any, Optional
 
 
 class RouteSerializer(GeoFeatureModelSerializer):
@@ -22,10 +25,12 @@ class StopSerializer(serializers.ModelSerializer):
     properties = serializers.SerializerMethodField()
     distance = serializers.SerializerMethodField()
     
-    def get_type(self, obj):
+    @extend_schema_field(serializers.CharField())
+    def get_type(self, obj) -> str:
         return 'Feature'
     
-    def get_geometry(self, obj):
+    @extend_schema_field(serializers.JSONField())
+    def get_geometry(self, obj) -> Optional[Dict[str, Any]]:
         """Return GeoJSON geometry."""
         if obj.location:
             return {
@@ -34,14 +39,16 @@ class StopSerializer(serializers.ModelSerializer):
             }
         return None
     
-    def get_distance(self, obj):
+    @extend_schema_field(serializers.FloatField())
+    def get_distance(self, obj) -> Optional[float]:
         """Return distance if annotated, otherwise None."""
         if hasattr(obj, 'distance') and obj.distance:
             # Return distance in meters
             return obj.distance.m
         return None
     
-    def get_properties(self, obj):
+    @extend_schema_field(serializers.JSONField())
+    def get_properties(self, obj) -> Dict[str, Any]:
         """Return feature properties."""
         props = {
             'id': obj.id,
@@ -104,36 +111,38 @@ class SpatialSearchSerializer(serializers.Serializer):
         return data
 
 
-class ShapeSerializer(serializers.Serializer):
+class ShapeSerializer(serializers.ModelSerializer):
     """Serializer for route shapes as GeoJSON LineStrings."""
     type = serializers.SerializerMethodField()
     geometry = serializers.SerializerMethodField()
     properties = serializers.SerializerMethodField()
     
-    def __init__(self, shape_instance, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.shape_instance = shape_instance
-    
-    def get_type(self, obj):
+    @extend_schema_field(serializers.CharField())
+    def get_type(self, obj) -> str:
         return 'Feature'
     
-    def get_geometry(self, obj):
+    @extend_schema_field(serializers.JSONField())
+    def get_geometry(self, obj) -> Optional[Dict[str, Any]]:
         """Return GeoJSON LineString geometry."""
-        if hasattr(self.shape_instance, 'geometry') and self.shape_instance.geometry:
-            coords = list(self.shape_instance.geometry.coords)
+        if obj.geometry and len(obj.geometry.coords) > 0:
+            coords = list(obj.geometry.coords)
             return {
                 'type': 'LineString',
                 'coordinates': coords
             }
         return None
     
-    def get_properties(self, obj):
+    @extend_schema_field(serializers.JSONField())
+    def get_properties(self, obj) -> Dict[str, Any]:
         """Return feature properties."""
-        shape = self.shape_instance
-        route = shape.trip_set.first().route if shape.trip_set.exists() else None
+        # Get route info from first trip that uses this shape
+        route = None
+        trip = obj.trip_set.first() if hasattr(obj, 'trip_set') else None
+        if trip:
+            route = trip.route
         
         return {
-            'shape_id': shape.shape_id,
+            'shape_id': obj.shape_id,
             'route_id': route.route_id if route else None,
             'route_short_name': route.route_short_name if route else None,
             'route_long_name': route.route_long_name if route else None,
@@ -141,7 +150,8 @@ class ShapeSerializer(serializers.Serializer):
         }
     
     class Meta:
-        fields = ['type', 'geometry', 'properties']
+        model = Shape
+        fields = ['type', 'geometry', 'properties', 'id', 'shape_id']
 
 
 class TripScheduleSerializer(serializers.Serializer):

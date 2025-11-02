@@ -11,6 +11,7 @@ from django.contrib.gis.geos import Point, Polygon
 from django.contrib.gis.db.models.functions import Distance
 from django.views.generic import TemplateView
 from django.shortcuts import render
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from transport_api.models import Route, Stop, SpatialQuery
 from transport_api.serializers import (
     RouteSerializer, StopSerializer, 
@@ -47,6 +48,14 @@ class StopViewSet(viewsets.ModelViewSet):
     ordering_fields = ['stop_name', 'created_at']
     ordering = ['stop_name']
 
+    @extend_schema(
+        description="Find stops within a radius of a specific point",
+        parameters=[
+            OpenApiParameter('lat', OpenApiTypes.FLOAT, description='Latitude coordinate'),
+            OpenApiParameter('lon', OpenApiTypes.FLOAT, description='Longitude coordinate'),
+            OpenApiParameter('distance_km', OpenApiTypes.FLOAT, description='Search radius in kilometers (default: 1.0)'),
+        ]
+    )
     @action(detail=False, methods=['get'])
     def nearby(self, request):
         """Find stops near a point. Params: lat, lon, distance_km"""
@@ -76,6 +85,15 @@ class StopViewSet(viewsets.ModelViewSet):
         except (ValueError, TypeError) as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @extend_schema(
+        description="Find stops within a bounding box",
+        parameters=[
+            OpenApiParameter('min_lat', OpenApiTypes.FLOAT, description='Minimum latitude'),
+            OpenApiParameter('max_lat', OpenApiTypes.FLOAT, description='Maximum latitude'),
+            OpenApiParameter('min_lon', OpenApiTypes.FLOAT, description='Minimum longitude'),
+            OpenApiParameter('max_lon', OpenApiTypes.FLOAT, description='Maximum longitude'),
+        ]
+    )
     @action(detail=False, methods=['get'])
     def in_bounds(self, request):
         """Find stops within a bounding box. Params: min_lat, max_lat, min_lon, max_lon"""
@@ -108,6 +126,14 @@ class StopViewSet(viewsets.ModelViewSet):
         except (ValueError, TypeError) as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @extend_schema(
+        description="Find k nearest stops to a geographic point",
+        parameters=[
+            OpenApiParameter('lat', OpenApiTypes.FLOAT, description='Latitude coordinate'),
+            OpenApiParameter('lon', OpenApiTypes.FLOAT, description='Longitude coordinate'),
+            OpenApiParameter('k', OpenApiTypes.INT, description='Number of nearest stops to return (default: 5)'),
+        ]
+    )
     @action(detail=False, methods=['get'])
     def k_nearest(self, request):
         """Find k nearest stops to a point. Params: lat, lon, k"""
@@ -188,6 +214,12 @@ class StopViewSet(viewsets.ModelViewSet):
             'schedules': schedules
         })
 
+    @extend_schema(
+        description="Find all stops on a specific route",
+        parameters=[
+            OpenApiParameter('route_id', OpenApiTypes.STR, description='The route ID to get stops for'),
+        ]
+    )
     @action(detail=False, methods=['get'])
     def on_route(self, request):
         """Find all stops on a specific route. Params: route_id"""
@@ -242,6 +274,7 @@ class StopViewSet(viewsets.ModelViewSet):
 class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet for route shapes as GeoJSON LineStrings."""
     queryset = Shape.objects.all()
+    serializer_class = ShapeSerializer
     pagination_class = None  # No pagination for shapes
     
     def list(self, request, *args, **kwargs):

@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'rest_framework_gis',
     'corsheaders',
     'django_filters',
+    'drf_spectacular',
     'transport_api',
 ]
 
@@ -140,6 +141,37 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
     'PAGE_SIZE': 10000,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# drf-spectacular configuration
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Transport API',
+    'DESCRIPTION': 'API for national transport network with spatial queries',
+    'VERSION': '1.0.0',
+    'SERVE_PERMISSIONS': ['rest_framework.permissions.AllowAny'],
+    'SCHEMA_PATH_PREFIX': '/api/',
+    'CONTACT': {
+        'name': 'Transport API Support',
+    },
+    'TAGS': [
+        {
+            'name': 'stops',
+            'description': 'Operations related to bus stops',
+        },
+        {
+            'name': 'routes',
+            'description': 'Operations related to bus routes',
+        },
+        {
+            'name': 'shapes',
+            'description': 'Operations related to route shapes and geometries',
+        },
+        {
+            'name': 'spatial-queries',
+            'description': 'Spatial query operations',
+        },
+    ],
 }
 
 
