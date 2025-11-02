@@ -35,7 +35,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('Starting transport data fetch from GTFS static files...'))
         
         # Determine what to load
-        load_all = not options['stops'] and not options['vehicles'] and not options['routes']
+        load_all = not options['stops'] and not options['routes']
         
         try:
             # Find GTFS folder (relative to project root)

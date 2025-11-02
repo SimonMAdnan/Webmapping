@@ -971,63 +971,106 @@ function displayRouteResults(shapes) {
 
 function displayStopsOnRouteResults(stops, routeData) {
     const resultsList = document.getElementById('resultsList');
-    resultsList.innerHTML = '';
+    const resultsDiv = document.getElementById('queryResults');
     
-    const routeHTML = `
-        <div class="alert alert-info mb-2">
-            <strong>${routeData.route_short_name}</strong> - ${routeData.route_long_name}<br>
-            <small>Type: ${routeData.route_type}</small><br>
-            <small>${routeData.stop_count} stops</small>
-        </div>
-    `;
+    let html = `<div class="alert alert-info mb-2">
+        <strong>${routeData.route_short_name}</strong> - ${routeData.route_long_name}<br>
+        <small>Type: ${routeData.route_type}</small><br>
+        <small>${routeData.stop_count} stops</small>
+    </div>`;
+    html += `<div class="results-count">Total: <strong>${stops.length}</strong></div>`;
     
-    const stopsHTML = stops.map((stop, idx) => `
-        <div class="result-item p-2 border-bottom cursor-pointer" onclick="centerMapOnResult(${stop.latitude}, ${stop.longitude}, 16)">
-            <strong class="badge badge-primary mr-2">${stop.sequence}</strong>
-            <strong>${stop.name}</strong><br>
-            <small>Stop ID: ${stop.stop_id}</small><br>
-            ${stop.arrival_time ? `<small>Arrival: ${stop.arrival_time}</small>` : ''}
-            ${stop.departure_time ? `<small style="margin-left: 10px;">Departure: ${stop.departure_time}</small>` : ''}
-        </div>
-    `).join('');
+    // Show first 3 stops
+    stops.slice(0, 3).forEach((stop) => {
+        html += `
+            <div class="result-item" style="cursor: pointer; padding: 8px; border-radius: 4px;" onclick="window.centerMapOnResult(${stop.latitude}, ${stop.longitude}, 16); this.style.backgroundColor='#f0e6ff';">
+                <strong class="badge badge-success" style="margin-right: 8px;">${stop.sequence}</strong>
+                <strong>${stop.name}</strong><br>
+                <small>Stop ID: ${stop.id}</small><br>
+                ${stop.arrival_time ? `<small>Arrival: ${stop.arrival_time}</small>` : ''}
+                ${stop.departure_time ? `<small style="margin-left: 10px;">Departure: ${stop.departure_time}</small>` : ''}
+            </div>
+        `;
+    });
     
-    resultsList.innerHTML = routeHTML + stopsHTML;
+    // Show dropdown for additional stops if more than 3
+    if (stops.length > 3) {
+        html += `<details style="margin: 10px 0; cursor: pointer;">
+            <summary style="color: #9b59b6; font-weight: bold;">Show ${stops.length - 3} more stops...</summary>
+            <div style="margin-top: 10px;">`;
+        
+        stops.slice(3).forEach((stop) => {
+            html += `
+                <div class="result-item" style="cursor: pointer; padding: 8px; border-radius: 4px;" onclick="window.centerMapOnResult(${stop.latitude}, ${stop.longitude}, 16); this.style.backgroundColor='#f0e6ff';">
+                    <strong class="badge badge-success" style="margin-right: 8px;">${stop.sequence}</strong>
+                    <strong>${stop.name}</strong><br>
+                    <small>Stop ID: ${stop.id}</small><br>
+                    ${stop.arrival_time ? `<small>Arrival: ${stop.arrival_time}</small>` : ''}
+                    ${stop.departure_time ? `<small style="margin-left: 10px;">Departure: ${stop.departure_time}</small>` : ''}
+                </div>
+            `;
+        });
+        
+        html += `</div></details>`;
+    }
     
-    // Show results panel
-    document.getElementById('queryResults').style.display = 'block';
+    resultsList.innerHTML = html;
+    resultsDiv.style.display = 'block';
 }
 
 function displayKNearestResults(stops, lat, lon, k) {
     const resultsList = document.getElementById('resultsList');
-    resultsList.innerHTML = '';
+    const resultsDiv = document.getElementById('queryResults');
     
-    const headerHTML = `
-        <div class="alert alert-info mb-2">
-            <strong>K-Nearest Stops (K=${k})</strong><br>
-            <small>Center: ${lat.toFixed(4)}, ${lon.toFixed(4)}</small><br>
-            <small>${stops.length} stops found</small>
-        </div>
-    `;
+    let html = `<div class="alert alert-info mb-2">
+        <strong>K-Nearest Stops (K=${k})</strong><br>
+        <small>Center: ${lat.toFixed(4)}, ${lon.toFixed(4)}</small><br>
+        <small>${stops.length} stops found</small>
+    </div>`;
+    html += `<div class="results-count">Total: <strong>${stops.length}</strong></div>`;
     
-    const stopsHTML = stops.map((stop, idx) => {
+    // Show first 3 stops
+    stops.slice(0, 3).forEach((stop, idx) => {
         const props = stop.properties || stop;
         const distance = stop.distance !== undefined ? (stop.distance / 1000).toFixed(3) : 'N/A';
         const coords = stop.geometry?.coordinates || [stop.longitude, stop.latitude];
         
-        return `
-            <div class="result-item p-2 border-bottom cursor-pointer" onclick="centerMapOnResult(${coords[1]}, ${coords[0]}, 17)">
-                <strong class="badge badge-primary mr-2">#${idx + 1}</strong>
+        html += `
+            <div class="result-item" style="cursor: pointer; padding: 8px; border-radius: 4px;" onclick="window.centerMapOnResult(${coords[1]}, ${coords[0]}, 17); this.style.backgroundColor='#f0e6ff';">
+                <strong class="badge badge-primary" style="margin-right: 8px;">#${idx + 1}</strong>
                 <strong>${props.stop_name}</strong><br>
                 <small>Stop ID: ${props.stop_id}</small><br>
                 <small>Distance: ${distance} km</small>
             </div>
         `;
-    }).join('');
+    });
     
-    resultsList.innerHTML = headerHTML + stopsHTML;
+    // Show dropdown for additional stops if more than 3
+    if (stops.length > 3) {
+        html += `<details style="margin: 10px 0; cursor: pointer;">
+            <summary style="color: #9b59b6; font-weight: bold;">Show ${stops.length - 3} more stops...</summary>
+            <div style="margin-top: 10px;">`;
+        
+        stops.slice(3).forEach((stop, idx) => {
+            const props = stop.properties || stop;
+            const distance = stop.distance !== undefined ? (stop.distance / 1000).toFixed(3) : 'N/A';
+            const coords = stop.geometry?.coordinates || [stop.longitude, stop.latitude];
+            
+            html += `
+                <div class="result-item" style="cursor: pointer; padding: 8px; border-radius: 4px;" onclick="window.centerMapOnResult(${coords[1]}, ${coords[0]}, 17); this.style.backgroundColor='#f0e6ff';">
+                    <strong class="badge badge-primary" style="margin-right: 8px;">#${idx + 4}</strong>
+                    <strong>${props.stop_name}</strong><br>
+                    <small>Stop ID: ${props.stop_id}</small><br>
+                    <small>Distance: ${distance} km</small>
+                </div>
+            `;
+        });
+        
+        html += `</div></details>`;
+    }
     
-    // Show results panel
-    document.getElementById('queryResults').style.display = 'block';
+    resultsList.innerHTML = html;
+    resultsDiv.style.display = 'block';
 }
 
 function updateRadiusOptions() {
@@ -1061,25 +1104,54 @@ document.addEventListener('DOMContentLoaded', function() {
         kNearestLonInput.value = '-6.2603';
     }
     
-    // Load routes into the route selector
-    loadRoutesIntoSelector();
+    // Load routes into the route selector with a delay to allow data to load
+    setTimeout(function() {
+        loadRoutesIntoSelector();
+    }, 1000);
 });
 
 function loadRoutesIntoSelector() {
     const routeSelect = document.getElementById('routeSelect');
     if (!routeSelect) return;
     
-    fetch('/api/routes/?limit=1000')
+    fetch('/api/routes/')
         .then(resp => resp.json())
         .then(data => {
-            const routes = data.results || [];
+            console.log('Routes API response:', data);
+            console.log('data.results:', data.results);
+            console.log('data.results.features:', data.results.features);
+            console.log('data.results.features length:', data.results.features ? data.results.features.length : 'undefined');
+            
+            let routes = [];
+            
+            // Handle different response formats
+            if (Array.isArray(data)) {
+                routes = data;
+            } else if (data.results && Array.isArray(data.results)) {
+                routes = data.results;
+            } else if (data.results && data.results.features && Array.isArray(data.results.features)) {
+                // GeoJSON FeatureCollection format
+                console.log('Using GeoJSON features format');
+                routes = data.results.features.map(feature => feature.properties || feature);
+            } else if (data.data && Array.isArray(data.data)) {
+                routes = data.data;
+            }
+            
+            console.log('Parsed routes:', routes);
+            console.log('Routes length:', routes.length);
             routeSelect.innerHTML = '<option value="">Select a route...</option>';
-            routes.forEach(route => {
-                const option = document.createElement('option');
-                option.value = route.route_id;
-                option.textContent = `${route.route_short_name} - ${route.route_long_name}`;
-                routeSelect.appendChild(option);
-            });
+            
+            if (routes.length === 0) {
+                routeSelect.innerHTML += '<option disabled>No routes found</option>';
+                console.warn('No routes found in database');
+            } else {
+                routes.forEach(route => {
+                    const option = document.createElement('option');
+                    option.value = route.route_id;
+                    option.textContent = `${route.route_short_name} - ${route.route_long_name}`;
+                    routeSelect.appendChild(option);
+                });
+            }
         })
         .catch(err => {
             console.error('Error loading routes:', err);
