@@ -156,9 +156,9 @@ function displayResults(results, title, centerLat, centerLon) {
                 const marker = L.marker([coords[1], coords[0]], {
                     icon: L.divIcon({
                         className: 'query-result-icon',
-                        html: '<i class="fas fa-star"></i>',
-                        iconSize: [25, 25],
-                        iconAnchor: [12, 12]
+                        html: '<i class="fas fa-star" style="color: #9b59b6; font-size: 28px;"></i>',
+                        iconSize: [40, 40],
+                        iconAnchor: [20, 20]
                     })
                 });
 
@@ -302,12 +302,11 @@ function displayRouteResults(shapes) {
             if (shape.geometry && shape.geometry.type === 'LineString') {
                 const coords = shape.geometry.coordinates.map(c => [c[1], c[0]]);
                 const props = shape.properties;
-                const routeColor = getRouteTypeColor(props.route_type);
 
                 const polyline = L.polyline(coords, {
-                    color: routeColor,
-                    weight: 3,
-                    opacity: 0.7
+                    color: '#9b59b6',
+                    weight: 4,
+                    opacity: 0.8
                 });
 
                 const popupContent = `
