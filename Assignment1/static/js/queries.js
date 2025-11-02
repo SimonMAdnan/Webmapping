@@ -538,7 +538,7 @@ async function performStopsOnRouteQuery() {
         const marker = L.marker([stop.latitude, stop.longitude], {
             icon: L.divIcon({
                 className: 'query-marker stop-marker',
-                html: `<div style="background: #2ecc71; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${stop.stop_sequence}</div>`,
+                html: `<div style="background: #e74c3c; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${stop.stop_sequence}</div>`,
                 iconSize: [30, 30],
                 iconAnchor: [15, 15]
             })
