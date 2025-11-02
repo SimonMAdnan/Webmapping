@@ -80,6 +80,7 @@ async function performAdvancedQuery() {
 
     try {
         let endpoint;
+        let title;
         
         if (queryType === 'congestion') {
             endpoint = '/api/vehicles/congestion/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
@@ -98,7 +99,9 @@ async function performAdvancedQuery() {
                 alert('Please enter valid coordinates');
                 return;
             }
-            endpoint = '/api/stops/nearby/?lat=' + lat + '&lon=' + lon + '&limit=' + count;
+            endpoint = '/api/stops/nearby/?lat=' + lat + '&lon=' + lon + '&distance=5000';
+        } else if (queryType === 'routes-bbox') {
+            endpoint = '/api/shapes/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
         }
 
         const response = await fetch(endpoint);
@@ -106,6 +109,8 @@ async function performAdvancedQuery() {
 
         if (queryType === 'congestion') {
             displayCongestionResults(data.results);
+        } else if (queryType === 'routes-bbox') {
+            displayRouteResults(data.results || []);
         } else {
             displayResults(data.results || [data], 'Advanced Query Results', minLat, minLon);
         }
@@ -196,14 +201,28 @@ function displayResultsList(results, title) {
     html += `<div class="results-count">Total: <strong>${results.length}</strong></div>`;
 
     results.forEach((result, index) => {
-        const name = result.stop_name || result.vehicle_id || result.route_short_name || `Result ${index + 1}`;
+        // Handle GeoJSON feature format
+        const props = result.properties || result;
+        
+        let name = props.stop_name || props.vehicle_id || props.route_short_name || `Result ${index + 1}`;
+        if (result.geometry) {
+            const coords = result.geometry.coordinates;
+            name = `${props.stop_name || props.route_short_name} (${coords[1].toFixed(4)}, ${coords[0].toFixed(4)})`;
+        }
+        
         const details = [];
         
-        if (result.stop_code) details.push(`Code: ${result.stop_code}`);
-        if (result.speed) details.push(`Speed: ${result.speed.toFixed(1)} km/h`);
-        if (result.status) details.push(`Status: ${result.status}`);
-        if (result.vehicle_count) details.push(`Vehicles: ${result.vehicle_count}`);
-        if (result.avg_speed) details.push(`Avg Speed: ${result.avg_speed.toFixed(1)} km/h`);
+        // Add relevant details based on result type
+        if (props.stop_code) details.push(`Code: ${props.stop_code}`);
+        if (props.stop_type) details.push(`Type: ${props.stop_type}`);
+        if (props.route_short_name && !props.stop_name) details.push(`Route: ${props.route_short_name}`);
+        if (props.route_long_name) details.push(`${props.route_long_name}`);
+        if (props.route_type) details.push(`Type: ${getRouteTypeName(props.route_type)}`);
+        if (props.speed) details.push(`Speed: ${props.speed.toFixed(1)} km/h`);
+        if (props.status) details.push(`Status: ${props.status}`);
+        if (props.vehicle_count) details.push(`Vehicles: ${props.vehicle_count}`);
+        if (props.avg_speed) details.push(`Avg Speed: ${props.avg_speed.toFixed(1)} km/h`);
+        if (props.shape_id) details.push(`Shape ID: ${props.shape_id}`);
 
         html += `
             <div class="result-item">
@@ -215,6 +234,57 @@ function displayResultsList(results, title) {
 
     resultsList.innerHTML = html;
     resultsDiv.style.display = 'block';
+}
+
+function displayRouteResults(shapes) {
+    queryLayer.clearLayers();
+
+    // Group shapes by route for better display
+    const shapesByRoute = {};
+    
+    shapes.forEach(shape => {
+        const props = shape.properties;
+        const routeKey = `${props.route_short_name || 'Unknown'}-${props.route_type || 'N/A'}`;
+        
+        if (!shapesByRoute[routeKey]) {
+            shapesByRoute[routeKey] = [];
+        }
+        shapesByRoute[routeKey].push(shape);
+    });
+
+    // Display each route as a polyline
+    Object.entries(shapesByRoute).forEach(([routeKey, routeShapes]) => {
+        routeShapes.forEach(shape => {
+            if (shape.geometry && shape.geometry.type === 'LineString') {
+                const coords = shape.geometry.coordinates.map(c => [c[1], c[0]]);
+                const props = shape.properties;
+                const routeColor = getRouteTypeColor(props.route_type);
+
+                const polyline = L.polyline(coords, {
+                    color: routeColor,
+                    weight: 3,
+                    opacity: 0.7
+                });
+
+                const popupContent = `
+                    <div class="popup-content">
+                        <strong>${props.route_short_name}</strong><br>
+                        ${props.route_long_name}<br>
+                        Type: ${getRouteTypeName(props.route_type)}<br>
+                        Shape ID: ${props.shape_id}
+                    </div>
+                `;
+                polyline.bindPopup(popupContent);
+                queryLayer.addLayer(polyline);
+            }
+        });
+    });
+
+    if (queryLayer.getLayers().length > 0) {
+        map.fitBounds(queryLayer.getBounds(), { padding: [50, 50] });
+    }
+
+    displayResultsList(shapes, `Routes in Area: ${Object.keys(shapesByRoute).length} routes found`);
 }
 
 function updateAdvancedOptions() {

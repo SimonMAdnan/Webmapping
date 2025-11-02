@@ -223,6 +223,45 @@ function initMap() {
         updateMapBounds();
     });
 
+    // Add map click handler to update nearest stop coordinates
+    map.on('click', function(e) {
+        const lat = e.latlng.lat;
+        const lon = e.latlng.lng;
+        
+        // Update radius search inputs
+        const radiusLatInput = document.getElementById('radiusLat');
+        const radiusLonInput = document.getElementById('radiusLon');
+        if (radiusLatInput && radiusLonInput) {
+            radiusLatInput.value = lat.toFixed(4);
+            radiusLonInput.value = lon.toFixed(4);
+            console.log(`Updated radius search coordinates to: ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+        }
+        
+        // Update nearest stops inputs if they exist
+        const nearestLatInput = document.getElementById('nearestLat');
+        const nearestLonInput = document.getElementById('nearestLon');
+        if (nearestLatInput && nearestLonInput) {
+            nearestLatInput.value = lat.toFixed(4);
+            nearestLonInput.value = lon.toFixed(4);
+            console.log(`Updated nearest stops coordinates to: ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+        }
+        
+        // Also update bounding box with a small area around the click point
+        const delta = 0.02; // ~2km area
+        const minLatInput = document.getElementById('bboxMinLat');
+        const maxLatInput = document.getElementById('bboxMaxLat');
+        const minLonInput = document.getElementById('bboxMinLon');
+        const maxLonInput = document.getElementById('bboxMaxLon');
+        
+        if (minLatInput && maxLatInput && minLonInput && maxLonInput) {
+            minLatInput.value = (lat - delta).toFixed(4);
+            maxLatInput.value = (lat + delta).toFixed(4);
+            minLonInput.value = (lon - delta).toFixed(4);
+            maxLonInput.value = (lon + delta).toFixed(4);
+            console.log(`Updated bounding box around: ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+        }
+    });
+
     // Initial data load - load routes in background but don't show them
     console.log('Starting initial data load');
     loadRoutesWithTripsAndServices();  // Load routes with trips and services (replaces loadShapesAndDisplay)
