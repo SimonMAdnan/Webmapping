@@ -677,7 +677,8 @@ function displayBothResults(stops, routes) {
             if (props.stop_type) details.push(`Type: ${props.stop_type}`);
             if (coords.length > 0) details.push(`(${coords[1].toFixed(4)}, ${coords[0].toFixed(4)})`);
             
-            html += `<div class="result-item" style="padding: 8px; border-left: 3px solid #9b59b6; margin-bottom: 5px;">
+            const stopId = `stop-${index}-${props.stop_id || 'unknown'}`;
+            html += `<div class="result-item" id="${stopId}" style="padding: 8px; border-left: 3px solid #9b59b6; margin-bottom: 5px; cursor: pointer;" onclick="window.centerMapOnResult(${coords[1]}, ${coords[0]}, 15); this.style.backgroundColor='#f0e6ff';">
                 <strong>${name}</strong><br>
                 <small>${details.join(' • ')}</small>
             </div>`;
@@ -699,7 +700,8 @@ function displayBothResults(stops, routes) {
                 if (props.stop_type) details.push(`Type: ${props.stop_type}`);
                 if (coords.length > 0) details.push(`(${coords[1].toFixed(4)}, ${coords[0].toFixed(4)})`);
                 
-                html += `<div class="result-item" style="padding: 8px; border-left: 3px solid #9b59b6; margin-bottom: 5px;">
+                const stopId = `stop-${index + 3}-${props.stop_id || 'unknown'}`;
+                html += `<div class="result-item" id="${stopId}" style="padding: 8px; border-left: 3px solid #9b59b6; margin-bottom: 5px; cursor: pointer;" onclick="window.centerMapOnResult(${coords[1]}, ${coords[0]}, 15); this.style.backgroundColor='#f0e6ff';">
                     <strong>${name}</strong><br>
                     <small>${details.join(' • ')}</small>
                 </div>`;
@@ -723,7 +725,10 @@ function displayBothResults(stops, routes) {
             const details = [];
             if (props.route_type) details.push(`Type: ${getRouteTypeName(props.route_type)}`);
             
-            html += `<div class="result-item" style="padding: 8px; border-left: 3px solid #9b59b6; margin-bottom: 5px;">
+            // Get first coordinate of route for centering
+            const coords = route.geometry?.coordinates?.[0] || [0, 0];
+            const routeItemId = `route-${index}-${routeId}`;
+            html += `<div class="result-item" id="${routeItemId}" style="padding: 8px; border-left: 3px solid #9b59b6; margin-bottom: 5px; cursor: pointer;" onclick="window.centerMapOnResult(${coords[1]}, ${coords[0]}, 15); this.style.backgroundColor='#f0e6ff';">
                 <strong>${shortName}</strong><br>
                 ${longName ? `<small>${longName}</small><br>` : ''}
                 <small>Route ID: ${routeId}${details.length > 0 ? ' • ' + details.join(' • ') : ''}</small>
@@ -745,7 +750,10 @@ function displayBothResults(stops, routes) {
                 const details = [];
                 if (props.route_type) details.push(`Type: ${getRouteTypeName(props.route_type)}`);
                 
-                html += `<div class="result-item" style="padding: 8px; border-left: 3px solid #9b59b6; margin-bottom: 5px;">
+                // Get first coordinate of route for centering
+                const coords = route.geometry?.coordinates?.[0] || [0, 0];
+                const routeItemId = `route-${index + 3}-${routeId}`;
+                html += `<div class="result-item" id="${routeItemId}" style="padding: 8px; border-left: 3px solid #9b59b6; margin-bottom: 5px; cursor: pointer;" onclick="window.centerMapOnResult(${coords[1]}, ${coords[0]}, 15); this.style.backgroundColor='#f0e6ff';">
                     <strong>${shortName}</strong><br>
                     ${longName ? `<small>${longName}</small><br>` : ''}
                     <small>Route ID: ${routeId}${details.length > 0 ? ' • ' + details.join(' • ') : ''}</small>
@@ -773,6 +781,7 @@ function displayResultsList(results, title) {
         const props = result.properties || result;
         
         let name = props.stop_name || props.vehicle_id || props.route_short_name || `Result ${index + 1}`;
+        let lat = 0, lon = 0;
         
         // Handle different geometry types
         if (result.geometry) {
@@ -781,11 +790,15 @@ function displayResultsList(results, title) {
             
             if (geomType === 'Point') {
                 // Point: [lon, lat]
-                name = `${props.stop_name || props.route_short_name} (${coords[1].toFixed(4)}, ${coords[0].toFixed(4)})`;
+                lat = coords[1];
+                lon = coords[0];
+                name = `${props.stop_name || props.route_short_name} (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
             } else if (geomType === 'LineString') {
                 // LineString: [[lon, lat], [lon, lat], ...]
-                // Get the first coordinate for display
+                // Get the first coordinate for display and centering
                 if (coords.length > 0) {
+                    lat = coords[0][1];
+                    lon = coords[0][0];
                     name = `${props.route_short_name} - ${props.route_long_name}`;
                 }
             }
@@ -805,8 +818,9 @@ function displayResultsList(results, title) {
         if (props.avg_speed) details.push(`Avg Speed: ${props.avg_speed.toFixed(1)} km/h`);
         if (props.shape_id) details.push(`Shape ID: ${props.shape_id}`);
 
+        const resultId = `result-${index}-${props.stop_id || props.route_id || 'unknown'}`;
         html += `
-            <div class="result-item">
+            <div class="result-item" id="${resultId}" style="cursor: pointer; padding: 8px; border-radius: 4px;" onclick="window.centerMapOnResult(${lat}, ${lon}, 15); this.style.backgroundColor='#f0e6ff';">
                 <div class="result-title">${name}</div>
                 <small class="text-muted">${details.join(' • ')}</small>
             </div>
@@ -824,6 +838,7 @@ function displayResultsList(results, title) {
             const props = result.properties || result;
             
             let name = props.stop_name || props.vehicle_id || props.route_short_name || `Result ${index + 4}`;
+            let lat = 0, lon = 0;
             
             // Handle different geometry types
             if (result.geometry) {
@@ -832,10 +847,14 @@ function displayResultsList(results, title) {
                 
                 if (geomType === 'Point') {
                     // Point: [lon, lat]
-                    name = `${props.stop_name || props.route_short_name} (${coords[1].toFixed(4)}, ${coords[0].toFixed(4)})`;
+                    lat = coords[1];
+                    lon = coords[0];
+                    name = `${props.stop_name || props.route_short_name} (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
                 } else if (geomType === 'LineString') {
                     // LineString: [[lon, lat], [lon, lat], ...]
                     if (coords.length > 0) {
+                        lat = coords[0][1];
+                        lon = coords[0][0];
                         name = `${props.route_short_name} - ${props.route_long_name}`;
                     }
                 }
@@ -855,8 +874,9 @@ function displayResultsList(results, title) {
             if (props.avg_speed) details.push(`Avg Speed: ${props.avg_speed.toFixed(1)} km/h`);
             if (props.shape_id) details.push(`Shape ID: ${props.shape_id}`);
 
+            const resultId = `result-${index + 3}-${props.stop_id || props.route_id || 'unknown'}`;
             html += `
-                <div class="result-item">
+                <div class="result-item" id="${resultId}" style="cursor: pointer; padding: 8px; border-radius: 4px;" onclick="window.centerMapOnResult(${lat}, ${lon}, 15); this.style.backgroundColor='#f0e6ff';">
                     <div class="result-title">${name}</div>
                     <small class="text-muted">${details.join(' • ')}</small>
                 </div>
@@ -954,3 +974,12 @@ document.addEventListener('DOMContentLoaded', function() {
         nearestLonInput.value = '-6.2603';
     }
 });
+
+/**
+ * Center map on a result point when clicked in the results panel
+ */
+window.centerMapOnResult = function(lat, lon, zoom) {
+    if (typeof map !== 'undefined' && map) {
+        map.setView([lat, lon], zoom || 15);
+    }
+};
