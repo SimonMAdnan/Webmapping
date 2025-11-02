@@ -20,6 +20,7 @@ class StopSerializer(serializers.ModelSerializer):
     type = serializers.SerializerMethodField()
     geometry = serializers.SerializerMethodField()
     properties = serializers.SerializerMethodField()
+    distance = serializers.SerializerMethodField()
     
     def get_type(self, obj):
         return 'Feature'
@@ -33,9 +34,16 @@ class StopSerializer(serializers.ModelSerializer):
             }
         return None
     
+    def get_distance(self, obj):
+        """Return distance if annotated, otherwise None."""
+        if hasattr(obj, 'distance') and obj.distance:
+            # Return distance in meters
+            return obj.distance.m
+        return None
+    
     def get_properties(self, obj):
         """Return feature properties."""
-        return {
+        props = {
             'id': obj.id,
             'stop_id': obj.stop_id,
             'stop_code': obj.stop_code,
@@ -44,10 +52,14 @@ class StopSerializer(serializers.ModelSerializer):
             'stop_type': obj.stop_type or '',
             'wheelchair_boarding': obj.wheelchair_boarding or 0,
         }
+        # Add distance to properties if available
+        if hasattr(obj, 'distance') and obj.distance:
+            props['distance'] = obj.distance.m
+        return props
     
     class Meta:
         model = Stop
-        fields = ['type', 'geometry', 'properties', 'id']
+        fields = ['type', 'geometry', 'properties', 'id', 'distance']
 
 
 class SpatialQuerySerializer(GeoFeatureModelSerializer):

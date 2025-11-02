@@ -108,6 +108,36 @@ class StopViewSet(viewsets.ModelViewSet):
         except (ValueError, TypeError) as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=False, methods=['get'])
+    def k_nearest(self, request):
+        """Find k nearest stops to a point. Params: lat, lon, k"""
+        lat = request.query_params.get('lat')
+        lon = request.query_params.get('lon')
+
+        if not lat or not lon:
+            return Response({'error': 'lat and lon required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            lat, lon = float(lat), float(lon)
+            k = int(request.query_params.get('k', 5))
+            # Create point with SRID 4326 (WGS84)
+            point = Point(lon, lat, srid=4326)
+            stops = Stop.objects.annotate(
+                distance=Distance('location', point)
+            ).order_by('distance')[:k]
+            
+            serializer = self.get_serializer(stops, many=True)
+            return Response({
+                'count': len(serializer.data),
+                'center': {'lat': lat, 'lon': lon},
+                'k': k,
+                'results': serializer.data
+            })
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=True, methods=['get'])
     def nearby_stops(self, request, pk=None):
         """Get stops near a specific stop."""
@@ -157,6 +187,56 @@ class StopViewSet(viewsets.ModelViewSet):
             'schedule_count': len(schedules),
             'schedules': schedules
         })
+
+    @action(detail=False, methods=['get'])
+    def on_route(self, request):
+        """Find all stops on a specific route. Params: route_id"""
+        route_id = request.query_params.get('route_id')
+        
+        if not route_id:
+            return Response({'error': 'route_id required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Get all stop times for trips on this route, ordered by sequence
+            stop_times = StopTime.objects.filter(
+                trip__route__route_id=route_id
+            ).select_related('stop', 'trip__route').order_by('stop_sequence').distinct()
+            
+            # Build unique list of stops with their details
+            stops_data = []
+            seen_stops = set()
+            
+            for st in stop_times:
+                if st.stop.id not in seen_stops:
+                    seen_stops.add(st.stop.id)
+                    stops_data.append({
+                        'stop_id': st.stop.stop_id,
+                        'stop_name': st.stop.stop_name,
+                        'stop_code': st.stop.stop_code,
+                        'stop_desc': st.stop.stop_desc or '',
+                        'stop_type': st.stop.stop_type or '',
+                        'latitude': st.stop.location.y,
+                        'longitude': st.stop.location.x,
+                        'stop_sequence': st.stop_sequence,
+                        'arrival_time': st.arrival_time.isoformat() if st.arrival_time else None,
+                        'departure_time': st.departure_time.isoformat() if st.departure_time else None,
+                    })
+            
+            # Get route information
+            route = Route.objects.get(route_id=route_id)
+            
+            return Response({
+                'route_id': route.route_id,
+                'route_short_name': route.route_short_name,
+                'route_long_name': route.route_long_name,
+                'route_type': route.route_type,
+                'stop_count': len(stops_data),
+                'stops': stops_data
+            })
+        except Route.DoesNotExist:
+            return Response({'error': f'Route {route_id} not found'}, status=status.HTTP_404_NOT_FOUND)
+        except (ValueError, TypeError) as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ShapeViewSet(viewsets.ReadOnlyModelViewSet):

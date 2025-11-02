@@ -247,9 +247,19 @@ function initMap() {
                 .bindPopup(`<strong>Marker 1</strong><br>Lat: ${lat.toFixed(4)}<br>Lon: ${lon.toFixed(4)}`)
                 .addTo(window.queryLayer);
             
-            // Update input fields
+            // Update bounds input fields
             document.getElementById('bboxMinLat').value = lat.toFixed(4);
             document.getElementById('bboxMinLon').value = lon.toFixed(4);
+            
+            // Update radius input fields
+            document.getElementById('radiusLat').value = lat.toFixed(4);
+            document.getElementById('radiusLon').value = lon.toFixed(4);
+            
+            // Update k-nearest input fields
+            const kNearestLat = document.getElementById('kNearestLat');
+            const kNearestLon = document.getElementById('kNearestLon');
+            if (kNearestLat) kNearestLat.value = lat.toFixed(4);
+            if (kNearestLon) kNearestLon.value = lon.toFixed(4);
             
             console.log(`Marker 1 created at: ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
             
@@ -266,7 +276,7 @@ function initMap() {
                 .bindPopup(`<strong>Marker 2</strong><br>Lat: ${lat.toFixed(4)}<br>Lon: ${lon.toFixed(4)}`)
                 .addTo(window.queryLayer);
             
-            // Update input fields
+            // Update bounds input fields
             document.getElementById('bboxMaxLat').value = lat.toFixed(4);
             document.getElementById('bboxMaxLon').value = lon.toFixed(4);
             
@@ -289,14 +299,32 @@ function initMap() {
                 .bindPopup(`<strong>Marker 1</strong><br>Lat: ${lat.toFixed(4)}<br>Lon: ${lon.toFixed(4)}`)
                 .addTo(window.queryLayer);
             
-            // Update input fields
+            // Update bounds input fields
             document.getElementById('bboxMinLat').value = lat.toFixed(4);
             document.getElementById('bboxMinLon').value = lon.toFixed(4);
             document.getElementById('bboxMaxLat').value = '';
             document.getElementById('bboxMaxLon').value = '';
             
+            // Update radius input fields
+            document.getElementById('radiusLat').value = lat.toFixed(4);
+            document.getElementById('radiusLon').value = lon.toFixed(4);
+            
+            // Update k-nearest input fields
+            const kNearestLat = document.getElementById('kNearestLat');
+            const kNearestLon = document.getElementById('kNearestLon');
+            if (kNearestLat) kNearestLat.value = lat.toFixed(4);
+            if (kNearestLon) kNearestLon.value = lon.toFixed(4);
+            
             console.log(`Markers reset. New Marker 1 created at: ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
         }
+    });
+
+    // Simple event listener to update k-nearest coordinates on map click
+    map.on('click', function(e) {
+        const kNearestLat = document.getElementById('kNearestLat');
+        const kNearestLon = document.getElementById('kNearestLon');
+        if (kNearestLat) kNearestLat.value = e.latlng.lat.toFixed(4);
+        if (kNearestLon) kNearestLon.value = e.latlng.lng.toFixed(4);
     });
 
     // Initial data load - load routes in background but don't show them

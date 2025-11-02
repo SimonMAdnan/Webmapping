@@ -164,13 +164,13 @@
                             <div class="form-group">
                                 <label>Query Type</label>
                                 <select id="advancedQueryType" class="form-select form-select-sm" onchange="updateAdvancedOptions()">
-                                    <option value="route-analysis">Route Analysis</option>
-                                    <option value="nearest-stops">Nearest Stops</option>
+                                    <option value="stops-on-route">Stops on Route</option>
+                                    <option value="k-nearest">K-Nearest Stops</option>
                                 </select>
                             </div>
 
-                            <!-- Route Analysis Options -->
-                            <div id="routeOptions" style="display: none;">
+                            <!-- Stops on Route Options -->
+                            <div id="stopsOnRouteOptions" style="display: block;">
                                 <div class="form-group">
                                     <label>Select Route</label>
                                     <select id="routeSelect" class="form-select form-select-sm">
@@ -179,19 +179,19 @@
                                 </div>
                             </div>
 
-                            <!-- Nearest Stops Options -->
-                            <div id="nearestOptions" style="display: none;">
+                            <!-- K-Nearest Stops Options -->
+                            <div id="kNearestOptions" style="display: none;">
                                 <div class="form-group">
                                     <label>Latitude</label>
-                                    <input type="number" id="nearestLat" class="form-control form-control-sm" placeholder="53.3498" step="0.0001">
+                                    <input type="number" id="kNearestLat" class="form-control form-control-sm" placeholder="53.3498" step="0.0001">
                                 </div>
                                 <div class="form-group">
                                     <label>Longitude</label>
-                                    <input type="number" id="nearestLon" class="form-control form-control-sm" placeholder="-6.2603" step="0.0001">
+                                    <input type="number" id="kNearestLon" class="form-control form-control-sm" placeholder="-6.2603" step="0.0001">
                                 </div>
                                 <div class="form-group">
-                                    <label>Number of Stops</label>
-                                    <input type="number" id="nearestCount" class="form-control form-control-sm" value="5" min="1" max="20">
+                                    <label>Number of Stops (K)</label>
+                                    <input type="number" id="kNearestCount" class="form-control form-control-sm" value="5" min="1" max="20">
                                 </div>
                             </div>
 

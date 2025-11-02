@@ -114,14 +114,14 @@ async function performRadiusSearch() {
             // For routes, we need to search for shapes/routes near the point
             const distanceKm = radius / 1000;
             const endpoint = `/api/shapes/nearby/?lat=${lat}&lon=${lon}&distance_km=${distanceKm}`;
-            // console.log('Fetching routes from radius:', endpoint);
+            console.log('Fetching routes from radius:', endpoint);
             const response = await fetch(endpoint);
             const data = await response.json();
-            // console.log('Radius routes response:', data);
+            console.log('Radius routes response:', data);
             
             // Add routes directly to layer (don't use displayRouteResults which clears the layer)
             const routesResults = data.results || [];
-            // console.log('Routes count:', routesResults.length);
+            console.log('Routes count:', routesResults.length);
             routesResults.forEach((route, idx) => {
                 const props = route.properties || route;
                 const coordinates = route.geometry?.coordinates;
@@ -497,168 +497,144 @@ async function performBoundsSearch() {
 
 async function performAdvancedQuery() {
     const queryType = document.getElementById('advancedQueryType').value;
-    const minLat = parseFloat(document.getElementById('bboxMinLat').value);
-    const maxLat = parseFloat(document.getElementById('bboxMaxLat').value);
-    const minLon = parseFloat(document.getElementById('bboxMinLon').value);
-    const maxLon = parseFloat(document.getElementById('bboxMaxLon').value);
-
+    const layer = window.queryLayer || queryLayer;
+    
     try {
-        let endpoint;
-        let title;
-        const layer = window.queryLayer || queryLayer;
-        
-        if (queryType === 'route-analysis') {
-            const routeId = document.getElementById('routeSelect').value;
-            if (!routeId) {
-                alert('Please select a route');
-                return;
-            }
-            endpoint = '/api/routes/' + routeId + '/';
-        } else if (queryType === 'nearest-stops') {
-            const lat = parseFloat(document.getElementById('nearestLat').value);
-            const lon = parseFloat(document.getElementById('nearestLon').value);
-            const count = parseInt(document.getElementById('nearestCount').value) || 5;
-            if (isNaN(lat) || isNaN(lon)) {
-                alert('Please enter valid coordinates');
-                return;
-            }
-            endpoint = '/api/stops/nearby/?lat=' + lat + '&lon=' + lon + '&distance_km=5';
-        } else if (queryType === 'routes-bbox') {
-            // Draw rectangle for routes-bbox
-            layer.clearLayers();
-            const boundsForRect = [[minLat, minLon], [maxLat, maxLon]];
-            const rectangle = L.rectangle(boundsForRect, {
-                color: '#9b59b6',
-                fill: true,
-                fillColor: '#9b59b6',
-                fillOpacity: 0.1,
-                weight: 3,
-                opacity: 0.8,
-                dashArray: '5, 5'
-            });
-            layer.addLayer(rectangle);
-            
-            endpoint = '/api/shapes/in_bounds/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
-        } else if (queryType === 'both-bbox') {
-            // For BOTH stops and routes in bounding box - fetch stops first, add to layer, then routes
-            const layer = window.queryLayer || queryLayer;
-            layer.clearLayers();
-            
-            const stopsUrl = '/api/stops/in_bounds/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
-            const shapesUrl = '/api/shapes/in_bounds/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
-            
-            const stopsResp = await fetch(stopsUrl);
-            const stopsData = await stopsResp.json();
-            
-            // Add stops to map
-            const stopsResults = stopsData.results || [];
-            stopsResults.forEach(stop => {
-                const props = stop.properties || stop;
-                const coords = stop.geometry?.coordinates || stop.point;
-                if (coords) {
-                    const marker = L.marker([coords[1], coords[0]], {
-                        icon: L.divIcon({
-                            className: 'query-marker stop-marker',
-                            html: '<i class="fas fa-star" style="color: #9b59b6; font-size: 32px; text-shadow: -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white, 1px 1px 0 white;"></i>',
-                            iconSize: [50, 50],
-                            iconAnchor: [25, 25]
-                        })
-                    });
-                    // Enhanced popup with all stop data
-                    const popupContent = `
-                        <div class="popup-content">
-                            <strong>${props.stop_name || props.name || 'Stop'}</strong><br>
-                            <small>Stop ID: ${props.stop_id || 'N/A'}</small><br>
-                            ${props.stop_code ? `Code: ${props.stop_code}<br>` : ''}
-                            ${props.stop_type ? `Type: ${props.stop_type}<br>` : ''}
-                            ${props.stop_desc ? `Description: ${props.stop_desc}<br>` : ''}
-                            <small>(${coords[1].toFixed(4)}, ${coords[0].toFixed(4)})</small>
-                        </div>
-                    `;
-                    marker.bindPopup(popupContent);
-                    layer.addLayer(marker);
-                }
-            });
-            
-            const routesResp = await fetch(shapesUrl);
-            const routesData = await routesResp.json();
-            
-            // Add routes to map
-            const routesResults = routesData.results || [];
-            routesResults.forEach(route => {
-                const props = route.properties || route;
-                const coordinates = route.geometry?.coordinates || route.coordinates;
-                if (coordinates && Array.isArray(coordinates)) {
-                    const latLngs = coordinates.map(coord => [coord[1], coord[0]]);
-                    const polyline = L.polyline(latLngs, {
-                        color: '#9b59b6',
-                        weight: 4,
-                        opacity: 0.8,
-                        lineCap: 'round',
-                        lineJoin: 'round'
-                    });
-                    // Enhanced popup with all route data
-                    const popupContent = `
-                        <div class="popup-content">
-                            <strong>${props.route_short_name || 'Route'}</strong><br>
-                            ${props.route_long_name ? `<small>${props.route_long_name}</small><br>` : ''}
-                            Route ID: ${props.route_id || 'N/A'}<br>
-                            ${props.route_type ? `Type: ${getRouteTypeName(props.route_type)}<br>` : ''}
-                            ${props.route_color ? `<small>Color: #${props.route_color}</small>` : ''}
-                        </div>
-                    `;
-                    polyline.bindPopup(popupContent);
-                    layer.addLayer(polyline);
-                }
-            });
-            
-            // Display results in the results panel
-            displayBothResults(stopsResults, routesResults);
-            return;
-        }
-
-        const response = await fetch(endpoint);
-        const data = await response.json();
-
-        if (queryType === 'routes-bbox') {
-            // Add routes directly to layer (don't use displayRouteResults which clears the layer)
-            const routesResults = data.results || [];
-            routesResults.forEach(route => {
-                const props = route.properties || route;
-                const coordinates = route.geometry?.coordinates;
-                if (coordinates && Array.isArray(coordinates)) {
-                    const latLngs = coordinates.map(coord => [coord[1], coord[0]]);
-                    const polyline = L.polyline(latLngs, {
-                        color: '#9b59b6',
-                        weight: 4,
-                        opacity: 0.8,
-                        lineCap: 'round',
-                        lineJoin: 'round'
-                    });
-                    // Enhanced popup with all route data
-                    const popupContent = `
-                        <div class="popup-content">
-                            <strong>${props.route_short_name || 'Route'}</strong><br>
-                            ${props.route_long_name ? `<small>${props.route_long_name}</small><br>` : ''}
-                            Route ID: ${props.route_id || 'N/A'}<br>
-                            ${props.route_type ? `Type: ${getRouteTypeName(props.route_type)}<br>` : ''}
-                            ${props.route_color ? `<small>Color: #${props.route_color}</small>` : ''}
-                        </div>
-                    `;
-                    polyline.bindPopup(popupContent);
-                    layer.addLayer(polyline);
-                }
-            });
-            
-            // Display results in the results panel
-            displayResultsList(routesResults, `Advanced Query: ${routesResults.length} routes found`);
-        } else {
-            displayResults(data.results || [data], 'Advanced Query Results', minLat, minLon);
+        if (queryType === 'stops-on-route') {
+            await performStopsOnRouteQuery();
+        } else if (queryType === 'k-nearest') {
+            await performKNearestQuery();
         }
     } catch (error) {
         console.error('Error performing advanced query:', error);
-        alert('Error performing search');
+        alert('Error performing search: ' + error.message);
     }
+}
+
+async function performStopsOnRouteQuery() {
+    const routeId = document.getElementById('routeSelect').value;
+    
+    if (!routeId) {
+        alert('Please select a route');
+        return;
+    }
+    
+    const layer = window.queryLayer || queryLayer;
+    layer.clearLayers();
+    
+    const endpoint = '/api/stops/on_route/?route_id=' + routeId;
+    const response = await fetch(endpoint);
+    const data = await response.json();
+    
+    if (response.status === 404) {
+        alert('Route not found');
+        return;
+    }
+    
+    const stops = data.stops || [];
+    
+    // Add stops to map with sequence numbers
+    stops.forEach(stop => {
+        const marker = L.marker([stop.latitude, stop.longitude], {
+            icon: L.divIcon({
+                className: 'query-marker stop-marker',
+                html: `<div style="background: #2ecc71; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${stop.stop_sequence}</div>`,
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            })
+        });
+        
+        const popupContent = `
+            <div class="popup-content">
+                <strong>${stop.stop_name}</strong><br>
+                <small>Stop ID: ${stop.stop_id}</small><br>
+                ${stop.stop_code ? `Code: ${stop.stop_code}<br>` : ''}
+                <small>Sequence: ${stop.stop_sequence}</small><br>
+                ${stop.arrival_time ? `Arrival: ${stop.arrival_time}<br>` : ''}
+                ${stop.departure_time ? `Departure: ${stop.departure_time}` : ''}
+            </div>
+        `;
+        marker.bindPopup(popupContent);
+        layer.addLayer(marker);
+    });
+    
+    // Display results
+    const resultsList = stops.map((stop, idx) => ({
+        id: stop.stop_id,
+        name: stop.stop_name,
+        sequence: stop.stop_sequence,
+        code: stop.stop_code,
+        type: stop.stop_type,
+        arrival_time: stop.arrival_time,
+        departure_time: stop.departure_time,
+        latitude: stop.latitude,
+        longitude: stop.longitude
+    }));
+    
+    displayStopsOnRouteResults(resultsList, data);
+}
+
+async function performKNearestQuery() {
+    const lat = parseFloat(document.getElementById('kNearestLat').value);
+    const lon = parseFloat(document.getElementById('kNearestLon').value);
+    const k = parseInt(document.getElementById('kNearestCount').value) || 5;
+    
+    if (isNaN(lat) || isNaN(lon)) {
+        alert('Please enter valid coordinates');
+        return;
+    }
+    
+    const layer = window.queryLayer || queryLayer;
+    layer.clearLayers();
+    
+    const endpoint = '/api/stops/k_nearest/?lat=' + lat + '&lon=' + lon + '&k=' + k;
+    const response = await fetch(endpoint);
+    const data = await response.json();
+    
+    const stops = data.results || [];
+    
+    // Add center point marker
+    const centerMarker = L.circleMarker([lat, lon], {
+        radius: 8,
+        fillColor: '#e74c3c',
+        color: '#c0392b',
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.8
+    });
+    centerMarker.bindPopup('<strong>Query Point</strong><br>(' + lat.toFixed(4) + ', ' + lon.toFixed(4) + ')');
+    layer.addLayer(centerMarker);
+    
+    // Add stops to map with rank numbers
+    stops.forEach((stop, idx) => {
+        const props = stop.properties || stop;
+        const coords = stop.geometry?.coordinates || [stop.longitude, stop.latitude];
+        
+        const marker = L.marker([coords[1], coords[0]], {
+            icon: L.divIcon({
+                className: 'query-marker stop-marker',
+                html: `<div style="background: #3498db; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${idx + 1}</div>`,
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            })
+        });
+        
+        const distance = stop.distance !== undefined ? stop.distance : 'N/A';
+        const popupContent = `
+            <div class="popup-content">
+                <strong>#${idx + 1}: ${props.stop_name}</strong><br>
+                <small>Stop ID: ${props.stop_id}</small><br>
+                ${props.stop_code ? `Code: ${props.stop_code}<br>` : ''}
+                <small>Distance: ${distance} m</small><br>
+                <small>(${coords[1].toFixed(4)}, ${coords[0].toFixed(4)})</small>
+            </div>
+        `;
+        marker.bindPopup(popupContent);
+        layer.addLayer(marker);
+    });
+    
+    // Display results
+    displayKNearestResults(stops, lat, lon, k);
 }
 
 function displayResults(results, title, centerLat, centerLon) {
@@ -993,6 +969,67 @@ function displayRouteResults(shapes) {
     displayResultsList(shapes, `Routes in Area: ${Object.keys(shapesByRoute).length} routes found`);
 }
 
+function displayStopsOnRouteResults(stops, routeData) {
+    const resultsList = document.getElementById('resultsList');
+    resultsList.innerHTML = '';
+    
+    const routeHTML = `
+        <div class="alert alert-info mb-2">
+            <strong>${routeData.route_short_name}</strong> - ${routeData.route_long_name}<br>
+            <small>Type: ${routeData.route_type}</small><br>
+            <small>${routeData.stop_count} stops</small>
+        </div>
+    `;
+    
+    const stopsHTML = stops.map((stop, idx) => `
+        <div class="result-item p-2 border-bottom cursor-pointer" onclick="centerMapOnResult(${stop.latitude}, ${stop.longitude}, 16)">
+            <strong class="badge badge-primary mr-2">${stop.sequence}</strong>
+            <strong>${stop.name}</strong><br>
+            <small>Stop ID: ${stop.stop_id}</small><br>
+            ${stop.arrival_time ? `<small>Arrival: ${stop.arrival_time}</small>` : ''}
+            ${stop.departure_time ? `<small style="margin-left: 10px;">Departure: ${stop.departure_time}</small>` : ''}
+        </div>
+    `).join('');
+    
+    resultsList.innerHTML = routeHTML + stopsHTML;
+    
+    // Show results panel
+    document.getElementById('queryResults').style.display = 'block';
+}
+
+function displayKNearestResults(stops, lat, lon, k) {
+    const resultsList = document.getElementById('resultsList');
+    resultsList.innerHTML = '';
+    
+    const headerHTML = `
+        <div class="alert alert-info mb-2">
+            <strong>K-Nearest Stops (K=${k})</strong><br>
+            <small>Center: ${lat.toFixed(4)}, ${lon.toFixed(4)}</small><br>
+            <small>${stops.length} stops found</small>
+        </div>
+    `;
+    
+    const stopsHTML = stops.map((stop, idx) => {
+        const props = stop.properties || stop;
+        const distance = stop.distance !== undefined ? (stop.distance / 1000).toFixed(3) : 'N/A';
+        const coords = stop.geometry?.coordinates || [stop.longitude, stop.latitude];
+        
+        return `
+            <div class="result-item p-2 border-bottom cursor-pointer" onclick="centerMapOnResult(${coords[1]}, ${coords[0]}, 17)">
+                <strong class="badge badge-primary mr-2">#${idx + 1}</strong>
+                <strong>${props.stop_name}</strong><br>
+                <small>Stop ID: ${props.stop_id}</small><br>
+                <small>Distance: ${distance} km</small>
+            </div>
+        `;
+    }).join('');
+    
+    resultsList.innerHTML = headerHTML + stopsHTML;
+    
+    // Show results panel
+    document.getElementById('queryResults').style.display = 'block';
+}
+
 function updateRadiusOptions() {
     // This function can be extended in the future for radius-specific options
     console.log('Radius search type changed');
@@ -1000,30 +1037,55 @@ function updateRadiusOptions() {
 
 function updateAdvancedOptions() {
     const queryType = document.getElementById('advancedQueryType').value;
-    const routeOptionsDiv = document.getElementById('routeOptions');
-    const nearestOptionsDiv = document.getElementById('nearestOptions');
+    const stopsOnRouteDiv = document.getElementById('stopsOnRouteOptions');
+    const kNearestDiv = document.getElementById('kNearestOptions');
 
-    routeOptionsDiv.style.display = queryType === 'route-analysis' ? 'block' : 'none';
-    nearestOptionsDiv.style.display = queryType === 'nearest-stops' ? 'block' : 'none';
+    stopsOnRouteDiv.style.display = queryType === 'stops-on-route' ? 'block' : 'none';
+    kNearestDiv.style.display = queryType === 'k-nearest' ? 'block' : 'none';
 }
 
 // Initialize coordinate inputs with current map bounds
 document.addEventListener('DOMContentLoaded', function() {
     const radiusLatInput = document.getElementById('radiusLat');
     const radiusLonInput = document.getElementById('radiusLon');
-    const nearestLatInput = document.getElementById('nearestLat');
-    const nearestLonInput = document.getElementById('nearestLon');
+    const kNearestLatInput = document.getElementById('kNearestLat');
+    const kNearestLonInput = document.getElementById('kNearestLon');
 
     if (radiusLatInput && radiusLonInput) {
         radiusLatInput.value = '53.3498';
         radiusLonInput.value = '-6.2603';
     }
 
-    if (nearestLatInput && nearestLonInput) {
-        nearestLatInput.value = '53.3498';
-        nearestLonInput.value = '-6.2603';
+    if (kNearestLatInput && kNearestLonInput) {
+        kNearestLatInput.value = '53.3498';
+        kNearestLonInput.value = '-6.2603';
     }
+    
+    // Load routes into the route selector
+    loadRoutesIntoSelector();
 });
+
+function loadRoutesIntoSelector() {
+    const routeSelect = document.getElementById('routeSelect');
+    if (!routeSelect) return;
+    
+    fetch('/api/routes/?limit=1000')
+        .then(resp => resp.json())
+        .then(data => {
+            const routes = data.results || [];
+            routeSelect.innerHTML = '<option value="">Select a route...</option>';
+            routes.forEach(route => {
+                const option = document.createElement('option');
+                option.value = route.route_id;
+                option.textContent = `${route.route_short_name} - ${route.route_long_name}`;
+                routeSelect.appendChild(option);
+            });
+        })
+        .catch(err => {
+            console.error('Error loading routes:', err);
+            routeSelect.innerHTML = '<option value="">Error loading routes</option>';
+        });
+}
 
 /**
  * Center map on a result point when clicked in the results panel
