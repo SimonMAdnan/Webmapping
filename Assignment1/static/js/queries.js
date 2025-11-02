@@ -324,15 +324,12 @@ async function performBoundsSearch() {
             
             const routesResp = await fetch(shapesUrl);
             const routesData = await routesResp.json();
-            console.log('Bounds both - Routes data:', routesData);
             
             // Add routes to map
             const routesResults = routesData.results || [];
-            console.log('Bounds both - Routes count:', routesResults.length);
             routesResults.forEach(route => {
                 const props = route.properties || route;
                 const coordinates = route.geometry?.coordinates;
-                console.log('Bounds both - Route:', props.route_short_name, 'has coords:', !!coordinates);
                 if (coordinates && Array.isArray(coordinates)) {
                     const latLngs = coordinates.map(coord => [coord[1], coord[0]]);
                     const polyline = L.polyline(latLngs, {
@@ -354,12 +351,10 @@ async function performBoundsSearch() {
                     `;
                     polyline.bindPopup(popupContent);
                     layer.addLayer(polyline);
-                    console.log('Bounds both - Added route to layer');
                 }
             });
             
             // Display results in the results panel
-            console.log('Bounds both - Display results. Stops:', stopsResults.length, 'Routes:', routesResults.length);
             displayBothResults(stopsResults, routesResults);
         } else {
             // For stops - don't use displayResults as it clears layers
@@ -495,15 +490,12 @@ async function performAdvancedQuery() {
             
             const routesResp = await fetch(shapesUrl);
             const routesData = await routesResp.json();
-            console.log('Advanced both-bbox - Routes data:', routesData);
             
             // Add routes to map
             const routesResults = routesData.results || [];
-            console.log('Advanced both-bbox - Routes count:', routesResults.length);
             routesResults.forEach(route => {
                 const props = route.properties || route;
                 const coordinates = route.geometry?.coordinates || route.coordinates;
-                console.log('Advanced both-bbox - Route:', props.route_short_name, 'has coords:', !!coordinates);
                 if (coordinates && Array.isArray(coordinates)) {
                     const latLngs = coordinates.map(coord => [coord[1], coord[0]]);
                     const polyline = L.polyline(latLngs, {
@@ -525,12 +517,10 @@ async function performAdvancedQuery() {
                     `;
                     polyline.bindPopup(popupContent);
                     layer.addLayer(polyline);
-                    console.log('Advanced both-bbox - Added route to layer');
                 }
             });
             
             // Display results in the results panel
-            console.log('Advanced both-bbox - Display results. Stops:', stopsResults.length, 'Routes:', routesResults.length);
             displayBothResults(stopsResults, routesResults);
             return;
         }
@@ -675,7 +665,9 @@ function displayBothResults(stops, routes) {
     // Display stops
     if (stops.length > 0) {
         html += `<div style="margin-top: 10px;"><strong style="color: #9b59b6;">📍 Stops (${stops.length})</strong></div>`;
-        stops.forEach((stop, index) => {
+        
+        // Show first 3 stops
+        stops.slice(0, 3).forEach((stop, index) => {
             const props = stop.properties || stop;
             const name = props.stop_name || props.name || `Stop ${index + 1}`;
             const coords = stop.geometry?.coordinates || [];
@@ -690,12 +682,39 @@ function displayBothResults(stops, routes) {
                 <small>${details.join(' • ')}</small>
             </div>`;
         });
+        
+        // Show dropdown for additional stops if more than 3
+        if (stops.length > 3) {
+            html += `<details style="margin: 10px 0; cursor: pointer;">
+                <summary style="color: #9b59b6; font-weight: bold;">Show ${stops.length - 3} more stops...</summary>
+                <div style="margin-top: 10px;">`;
+            
+            stops.slice(3).forEach((stop, index) => {
+                const props = stop.properties || stop;
+                const name = props.stop_name || props.name || `Stop ${index + 4}`;
+                const coords = stop.geometry?.coordinates || [];
+                
+                const details = [];
+                if (props.stop_code) details.push(`Code: ${props.stop_code}`);
+                if (props.stop_type) details.push(`Type: ${props.stop_type}`);
+                if (coords.length > 0) details.push(`(${coords[1].toFixed(4)}, ${coords[0].toFixed(4)})`);
+                
+                html += `<div class="result-item" style="padding: 8px; border-left: 3px solid #9b59b6; margin-bottom: 5px;">
+                    <strong>${name}</strong><br>
+                    <small>${details.join(' • ')}</small>
+                </div>`;
+            });
+            
+            html += `</div></details>`;
+        }
     }
 
     // Display routes
     if (routes.length > 0) {
         html += `<div style="margin-top: 15px;"><strong style="color: #9b59b6;">🛣️ Routes (${routes.length})</strong></div>`;
-        routes.forEach((route, index) => {
+        
+        // Show first 3 routes
+        routes.slice(0, 3).forEach((route, index) => {
             const props = route.properties || route;
             const shortName = props.route_short_name || 'Route';
             const longName = props.route_long_name || '';
@@ -710,6 +729,31 @@ function displayBothResults(stops, routes) {
                 <small>Route ID: ${routeId}${details.length > 0 ? ' • ' + details.join(' • ') : ''}</small>
             </div>`;
         });
+        
+        // Show dropdown for additional routes if more than 3
+        if (routes.length > 3) {
+            html += `<details style="margin: 10px 0; cursor: pointer;">
+                <summary style="color: #9b59b6; font-weight: bold;">Show ${routes.length - 3} more routes...</summary>
+                <div style="margin-top: 10px;">`;
+            
+            routes.slice(3).forEach((route, index) => {
+                const props = route.properties || route;
+                const shortName = props.route_short_name || 'Route';
+                const longName = props.route_long_name || '';
+                const routeId = props.route_id || index + 4;
+                
+                const details = [];
+                if (props.route_type) details.push(`Type: ${getRouteTypeName(props.route_type)}`);
+                
+                html += `<div class="result-item" style="padding: 8px; border-left: 3px solid #9b59b6; margin-bottom: 5px;">
+                    <strong>${shortName}</strong><br>
+                    ${longName ? `<small>${longName}</small><br>` : ''}
+                    <small>Route ID: ${routeId}${details.length > 0 ? ' • ' + details.join(' • ') : ''}</small>
+                </div>`;
+            });
+            
+            html += `</div></details>`;
+        }
     }
 
     resultsList.innerHTML = html;
@@ -723,7 +767,8 @@ function displayResultsList(results, title) {
     let html = `<div class="alert alert-info">${title}</div>`;
     html += `<div class="results-count">Total: <strong>${results.length}</strong></div>`;
 
-    results.forEach((result, index) => {
+    // Show first 3 results
+    results.slice(0, 3).forEach((result, index) => {
         // Handle GeoJSON feature format
         const props = result.properties || result;
         
@@ -767,6 +812,59 @@ function displayResultsList(results, title) {
             </div>
         `;
     });
+
+    // Show dropdown for additional results if more than 3
+    if (results.length > 3) {
+        html += `<details style="margin: 10px 0; cursor: pointer;">
+            <summary style="color: #9b59b6; font-weight: bold;">Show ${results.length - 3} more results...</summary>
+            <div style="margin-top: 10px;">`;
+        
+        results.slice(3).forEach((result, index) => {
+            // Handle GeoJSON feature format
+            const props = result.properties || result;
+            
+            let name = props.stop_name || props.vehicle_id || props.route_short_name || `Result ${index + 4}`;
+            
+            // Handle different geometry types
+            if (result.geometry) {
+                const geomType = result.geometry.type;
+                const coords = result.geometry.coordinates;
+                
+                if (geomType === 'Point') {
+                    // Point: [lon, lat]
+                    name = `${props.stop_name || props.route_short_name} (${coords[1].toFixed(4)}, ${coords[0].toFixed(4)})`;
+                } else if (geomType === 'LineString') {
+                    // LineString: [[lon, lat], [lon, lat], ...]
+                    if (coords.length > 0) {
+                        name = `${props.route_short_name} - ${props.route_long_name}`;
+                    }
+                }
+            }
+            
+            const details = [];
+            
+            // Add relevant details based on result type
+            if (props.stop_code) details.push(`Code: ${props.stop_code}`);
+            if (props.stop_type) details.push(`Type: ${props.stop_type}`);
+            if (props.route_short_name && !props.stop_name) details.push(`Route: ${props.route_short_name}`);
+            if (props.route_long_name) details.push(`${props.route_long_name}`);
+            if (props.route_type) details.push(`Type: ${getRouteTypeName(props.route_type)}`);
+            if (props.speed) details.push(`Speed: ${props.speed.toFixed(1)} km/h`);
+            if (props.status) details.push(`Status: ${props.status}`);
+            if (props.vehicle_count) details.push(`Vehicles: ${props.vehicle_count}`);
+            if (props.avg_speed) details.push(`Avg Speed: ${props.avg_speed.toFixed(1)} km/h`);
+            if (props.shape_id) details.push(`Shape ID: ${props.shape_id}`);
+
+            html += `
+                <div class="result-item">
+                    <div class="result-title">${name}</div>
+                    <small class="text-muted">${details.join(' • ')}</small>
+                </div>
+            `;
+        });
+        
+        html += `</div></details>`;
+    }
 
     resultsList.innerHTML = html;
     resultsDiv.style.display = 'block';
