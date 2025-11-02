@@ -54,7 +54,7 @@ async function performRadiusSearch() {
                     const marker = L.marker([coords[1], coords[0]], {
                         icon: L.divIcon({
                             className: 'query-marker stop-marker',
-                            html: '<i class="fas fa-star" style="color: #9b59b6; font-size: 32px;"></i>',
+                            html: '<i class="fas fa-star" style="color: #9b59b6; font-size: 32px; text-shadow: -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white, 1px 1px 0 white;"></i>',
                             iconSize: [50, 50],
                             iconAnchor: [25, 25]
                         })
@@ -168,14 +168,15 @@ async function performBoundsSearch() {
             // Add stops to map
             const stopsResults = stopsData.results || [];
             stopsResults.forEach(stop => {
+                const props = stop.properties || stop;
                 const coords = stop.geometry?.coordinates || stop.point;
                 if (coords) {
                     const marker = L.marker([coords[1], coords[0]], {
                         icon: L.divIcon({
                             className: 'query-marker stop-marker',
-                            html: '<i class="fas fa-star"></i>',
-                            iconSize: [40, 40],
-                            iconAnchor: [20, 20]
+                            html: '<i class="fas fa-star" style="color: #9b59b6; font-size: 32px; text-shadow: -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white, 1px 1px 0 white;"></i>',
+                            iconSize: [50, 50],
+                            iconAnchor: [25, 25]
                         })
                     });
                     // Enhanced popup with all stop data
@@ -209,7 +210,9 @@ async function performBoundsSearch() {
                     const polyline = L.polyline(latLngs, {
                         color: '#9b59b6',
                         weight: 4,
-                        opacity: 0.8
+                        opacity: 0.8,
+                        lineCap: 'round',
+                        lineJoin: 'round'
                     });
                     // Enhanced popup with all route data
                     const popupContent = `
@@ -294,9 +297,9 @@ async function performAdvancedQuery() {
                     const marker = L.marker([coords[1], coords[0]], {
                         icon: L.divIcon({
                             className: 'query-marker stop-marker',
-                            html: '<i class="fas fa-star"></i>',
-                            iconSize: [40, 40],
-                            iconAnchor: [20, 20]
+                            html: '<i class="fas fa-star" style="color: #9b59b6; font-size: 32px; text-shadow: -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white, 1px 1px 0 white;"></i>',
+                            iconSize: [50, 50],
+                            iconAnchor: [25, 25]
                         })
                     });
                     // Enhanced popup with all stop data
@@ -330,7 +333,9 @@ async function performAdvancedQuery() {
                     const polyline = L.polyline(latLngs, {
                         color: '#9b59b6',
                         weight: 4,
-                        opacity: 0.8
+                        opacity: 0.8,
+                        lineCap: 'round',
+                        lineJoin: 'round'
                     });
                     // Enhanced popup with all route data
                     const popupContent = `
@@ -586,7 +591,9 @@ function displayRouteResults(shapes) {
                 const polyline = L.polyline(coords, {
                     color: '#9b59b6',
                     weight: 4,
-                    opacity: 0.8
+                    opacity: 0.8,
+                    lineCap: 'round',
+                    lineJoin: 'round'
                 });
 
                 const popupContent = `
