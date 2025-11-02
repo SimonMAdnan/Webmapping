@@ -14,10 +14,6 @@ async function performRadiusSearch() {
     }
 
     try {
-        const endpoint = `/api/${queryType}/nearby/?lat=${lat}&lon=${lon}&distance=${radius}`;
-        const response = await fetch(endpoint);
-        const data = await response.json();
-
         queryLayer.clearLayers();
         const circle = L.circle([lat, lon], {
             radius: radius,
@@ -29,7 +25,19 @@ async function performRadiusSearch() {
         });
         queryLayer.addLayer(circle);
 
-        displayResults(data.results, `Radius Search: ${data.results.length} ${queryType} found`, lat, lon);
+        if (queryType === 'routes') {
+            // For routes, we need to search for shapes/routes near the point
+            const endpoint = `/api/shapes/in_bounds/?min_lat=${lat - 0.05}&max_lat=${lat + 0.05}&min_lon=${lon - 0.05}&max_lon=${lon + 0.05}`;
+            const response = await fetch(endpoint);
+            const data = await response.json();
+            displayRouteResults(data.results || []);
+        } else {
+            // For stops
+            const endpoint = `/api/${queryType}/nearby/?lat=${lat}&lon=${lon}&distance=${radius}`;
+            const response = await fetch(endpoint);
+            const data = await response.json();
+            displayResults(data.results, `Radius Search: ${data.results.length} ${queryType} found`, lat, lon);
+        }
     } catch (error) {
         console.error('Error performing radius search:', error);
         alert('Error performing search');
@@ -49,10 +57,6 @@ async function performBoundsSearch() {
     }
 
     try {
-        const endpoint = `/api/${queryType}/in_bounds/?min_lat=${minLat}&max_lat=${maxLat}&min_lon=${minLon}&max_lon=${maxLon}`;
-        const response = await fetch(endpoint);
-        const data = await response.json();
-
         queryLayer.clearLayers();
         const bounds = [[minLat, minLon], [maxLat, maxLon]];
         const rectangle = L.rectangle(bounds, {
@@ -64,7 +68,19 @@ async function performBoundsSearch() {
         });
         queryLayer.addLayer(rectangle);
 
-        displayResults(data.results, `Bounds Search: ${data.results.length} ${queryType} found`, (minLat + maxLat) / 2, (minLon + maxLon) / 2);
+        if (queryType === 'routes') {
+            // For routes, use shapes endpoint
+            const endpoint = `/api/shapes/in_bounds/?min_lat=${minLat}&max_lat=${maxLat}&min_lon=${minLon}&max_lon=${maxLon}`;
+            const response = await fetch(endpoint);
+            const data = await response.json();
+            displayRouteResults(data.results || []);
+        } else {
+            // For stops
+            const endpoint = `/api/${queryType}/in_bounds/?min_lat=${minLat}&max_lat=${maxLat}&min_lon=${minLon}&max_lon=${maxLon}`;
+            const response = await fetch(endpoint);
+            const data = await response.json();
+            displayResults(data.results, `Bounds Search: ${data.results.length} ${queryType} found`, (minLat + maxLat) / 2, (minLon + maxLon) / 2);
+        }
     } catch (error) {
         console.error('Error performing bounds search:', error);
         alert('Error performing search');
@@ -101,7 +117,7 @@ async function performAdvancedQuery() {
             }
             endpoint = '/api/stops/nearby/?lat=' + lat + '&lon=' + lon + '&distance=5000';
         } else if (queryType === 'routes-bbox') {
-            endpoint = '/api/shapes/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
+            endpoint = '/api/shapes/in_bounds/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
         }
 
         const response = await fetch(endpoint);
@@ -205,9 +221,22 @@ function displayResultsList(results, title) {
         const props = result.properties || result;
         
         let name = props.stop_name || props.vehicle_id || props.route_short_name || `Result ${index + 1}`;
+        
+        // Handle different geometry types
         if (result.geometry) {
+            const geomType = result.geometry.type;
             const coords = result.geometry.coordinates;
-            name = `${props.stop_name || props.route_short_name} (${coords[1].toFixed(4)}, ${coords[0].toFixed(4)})`;
+            
+            if (geomType === 'Point') {
+                // Point: [lon, lat]
+                name = `${props.stop_name || props.route_short_name} (${coords[1].toFixed(4)}, ${coords[0].toFixed(4)})`;
+            } else if (geomType === 'LineString') {
+                // LineString: [[lon, lat], [lon, lat], ...]
+                // Get the first coordinate for display
+                if (coords.length > 0) {
+                    name = `${props.route_short_name} - ${props.route_long_name}`;
+                }
+            }
         }
         
         const details = [];
@@ -285,6 +314,11 @@ function displayRouteResults(shapes) {
     }
 
     displayResultsList(shapes, `Routes in Area: ${Object.keys(shapesByRoute).length} routes found`);
+}
+
+function updateRadiusOptions() {
+    // This function can be extended in the future for radius-specific options
+    console.log('Radius search type changed');
 }
 
 function updateAdvancedOptions() {

@@ -276,6 +276,77 @@ class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
         
         return Response(data)
 
+    @action(detail=False, methods=['get'])
+    def in_bounds(self, request):
+        """Find shapes within a bounding box. Params: min_lat, max_lat, min_lon, max_lon"""
+        min_lat = request.query_params.get('min_lat')
+        max_lat = request.query_params.get('max_lat')
+        min_lon = request.query_params.get('min_lon')
+        max_lon = request.query_params.get('max_lon')
+
+        if not all([min_lat, max_lat, min_lon, max_lon]):
+            return Response({'error': 'All bounds parameters required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            min_lat, max_lat = float(min_lat), float(max_lat)
+            min_lon, max_lon = float(min_lon), float(max_lon)
+            
+            bounds = Polygon([
+                (min_lon, min_lat),
+                (max_lon, min_lat),
+                (max_lon, max_lat),
+                (min_lon, max_lat),
+                (min_lon, min_lat),
+            ])
+            
+            # Find shapes that intersect with the bounds
+            shapes = Shape.objects.filter(geometry__intersects=bounds)
+            
+            # Preload trips with routes
+            shape_ids = [s.shape_id for s in shapes]
+            trips_by_shape = {}
+            for trip in Trip.objects.filter(shape_id__in=shape_ids).select_related('route').only(
+                'shape_id', 'route__route_id', 'route__route_short_name', 'route__route_long_name', 'route__route_type'
+            ):
+                if trip.shape_id not in trips_by_shape:
+                    trips_by_shape[trip.shape_id] = trip
+            
+            features = []
+            for shape in shapes:
+                if shape.geometry and len(shape.geometry.coords) > 0:
+                    trip = trips_by_shape.get(shape.shape_id)
+                    route = trip.route if trip else None
+                    
+                    coords = list(shape.geometry.coords)
+                    feature = {
+                        'type': 'Feature',
+                        'geometry': {
+                            'type': 'LineString',
+                            'coordinates': coords
+                        },
+                        'properties': {
+                            'shape_id': shape.shape_id,
+                            'route_id': route.route_id if route else None,
+                            'route_short_name': route.route_short_name if route else None,
+                            'route_long_name': route.route_long_name if route else None,
+                            'route_type': route.route_type if route else None,
+                        }
+                    }
+                    features.append(feature)
+            
+            return Response({
+                'count': len(features),
+                'bounds': {
+                    'min_lat': min_lat,
+                    'max_lat': max_lat,
+                    'min_lon': min_lon,
+                    'max_lon': max_lon,
+                },
+                'results': features
+            })
+        except (ValueError, TypeError) as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class VehicleViewSet(viewsets.ModelViewSet):
     """ViewSet for real-time vehicle tracking with spatial queries."""
