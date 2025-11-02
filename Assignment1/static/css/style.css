@@ -75,6 +75,7 @@ html, body {
     border-radius: 8px;
     box-shadow: var(--shadow);
     padding: 20px;
+    padding-left: 30px;
     max-width: 380px;
     z-index: 1000;
     max-height: calc(100vh - 150px);
@@ -108,11 +109,16 @@ html, body {
     font-size: 0.9rem;
 }
 
+.form-group {
+    margin-left: 15px;
+}
+
 .form-control,
 .form-select {
     border-radius: 6px;
     border: 1px solid var(--border);
     margin-bottom: 10px;
+    margin-left: 0px;
     font-size: 0.95rem;
 }
 
@@ -127,6 +133,7 @@ html, body {
     border-radius: 6px;
     font-weight: 500;
     padding: 10px 16px;
+    margin-left: 10px;
     font-size: 0.95rem;
     transition: all 0.3s ease;
 }
@@ -350,6 +357,7 @@ html, body {
 /* Form Checks */
 .form-check {
     padding: 10px 0;
+    margin-left: 30px;
     border-bottom: 1px solid #e9ecef;
 }
 
