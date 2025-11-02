@@ -249,6 +249,32 @@ class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
         
         return Response(data)
 
+    @action(detail=False, methods=['get'])
+    def trip_details(self, request):
+        """Get detailed trips with services for a specific shape. Params: shape_id"""
+        shape_id = request.query_params.get('shape_id')
+        
+        if not shape_id:
+            return Response({'error': 'shape_id required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get all trips for this shape with full details including service
+        trips = Trip.objects.filter(shape_id=shape_id).select_related('route').order_by('service_id')
+        
+        data = []
+        for trip in trips:
+            data.append({
+                'trip_id': trip.trip_id,
+                'service_id': trip.service_id,
+                'trip_headsign': trip.trip_headsign,
+                'route_id': trip.route.route_id,
+                'route_short_name': trip.route.route_short_name,
+                'route_long_name': trip.route.route_long_name,
+                'route_type': trip.route.route_type,
+                'shape_id': shape_id,
+            })
+        
+        return Response(data)
+
 
 class VehicleViewSet(viewsets.ModelViewSet):
     """ViewSet for real-time vehicle tracking with spatial queries."""

@@ -209,7 +209,7 @@ function initMap() {
     // Initial data load
     console.log('Starting initial data load');
     loadStops();
-    loadShapesAndDisplay();
+    loadRoutesWithTripsAndServices();  // Load routes with trips and services (replaces loadShapesAndDisplay)
     updateStatistics();
     
     console.log('Map initialized with multiple tile layers');
@@ -753,6 +753,220 @@ function toggleAutoRefresh() {
 function focusOnFeature(coords) {
     map.setView(coords, 16);
 }
+
+// ==================== ROUTES WITH TRIPS AND SERVICES ====================
+
+// Cache for trips data to avoid redundant fetches
+let tripsCache = {};
+
+/**
+ * Fetch and cache trips for a specific shape (on-demand)
+ */
+async function fetchTripsForShape(shapeId) {
+    // Check cache first
+    if (tripsCache[shapeId]) {
+        return tripsCache[shapeId];
+    }
+    
+    try {
+        // Use the new trip_details endpoint that includes service_id
+        const resp = await fetch(`/api/shapes/trip_details/?shape_id=${shapeId}`);
+        if (resp.ok) {
+            const trips = await resp.json();
+            tripsCache[shapeId] = Array.isArray(trips) ? trips : [];
+            return tripsCache[shapeId];
+        }
+    } catch (err) {
+        console.debug(`Could not fetch trip details for shape ${shapeId}:`, err.message);
+    }
+    
+    return [];
+}
+
+/**
+ * Load routes with trips and services
+ * Fetches shapes and loads trip data on-demand when popups are opened
+ */
+async function loadRoutesWithTripsAndServices() {
+    console.log('Loading routes with on-demand trip loading...');
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) spinner.style.display = 'block';
+    
+    try {
+        // Try to load from cache first
+        console.log('Checking shape cache...');
+        let shapes = await getCachedShapesFromIndexedDB();
+        let fromCache = false;
+        
+        if (!shapes || shapes.length === 0) {
+            // Fetch from API if not cached
+            console.log('Shape cache empty or expired, fetching from API...');
+            const shapesResp = await fetch('/api/shapes/?limit=5000');
+            const shapesData = await shapesResp.json();
+            shapes = shapesData.results || [];
+            
+            // Cache the shapes for next time
+            if (shapes && shapes.length > 0) {
+                try {
+                    await cacheShapesInIndexedDB(shapes);
+                    console.log(`✓ Cached ${shapes.length} shapes to IndexedDB`);
+                } catch (cacheErr) {
+                    console.warn('Could not cache shapes:', cacheErr);
+                }
+            }
+        } else {
+            fromCache = true;
+            console.log(`✓ Loaded ${shapes.length} shapes from cache (fast!)`);
+        }
+        
+        if (!shapes || shapes.length === 0) {
+            console.warn('No shapes available');
+            if (spinner) spinner.style.display = 'none';
+            return;
+        }
+
+        console.log(`Using ${shapes.length} shapes${fromCache ? ' from cache' : ' from API'}, rendering...`);
+        
+        // Render all shapes
+        let renderedCount = 0;
+        for (const shape of shapes) {
+            try {
+                const props = shape.properties;
+                if (!props || !shape.geometry) continue;
+                
+                // Create polyline for this route
+                if (shape.geometry.coordinates && shape.geometry.coordinates.length > 0) {
+                    const coords = shape.geometry.coordinates.map(c => [c[1], c[0]]);
+                    const routeColor = getRouteTypeColor(props.route_type);
+                    
+                    const polyline = L.polyline(coords, {
+                        color: routeColor,
+                        weight: 3,
+                        opacity: 0.7,
+                        dashArray: '5, 5'
+                    });
+                    
+                    // Create tooltip with route info
+                    polyline.bindTooltip(
+                        `${props.route_short_name} - ${props.route_long_name}`, 
+                        {
+                            permanent: false,
+                            direction: 'top',
+                            offset: [0, -10]
+                        }
+                    );
+                    
+                    // Create popup that loads trips on-demand
+                    const popupContent = `
+                        <div class="popup-content" style="font-size: 12px; min-width: 350px; max-height: 500px; overflow-y: auto;">
+                            <h6 style="margin: 0 0 10px 0; font-weight: bold;">
+                                Route ${props.route_short_name}
+                                <span style="background: ${routeColor}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin-left: 5px;">
+                                    ${getRouteTypeName(props.route_type)}
+                                </span>
+                            </h6>
+                            
+                            <div style="margin-bottom: 8px; color: #555;">
+                                <strong>${props.route_long_name || 'No description'}</strong>
+                            </div>
+                            
+                            <hr style="margin: 8px 0;">
+                            
+                            <div id="trips-${props.shape_id}" style="font-size: 11px;">
+                                <div style="text-align: center; color: #999; padding: 20px 0;">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading trips...
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    polyline.bindPopup(popupContent, { maxHeight: 500, maxWidth: 400 });
+                    
+                    // Load trips when popup opens
+                    polyline.on('popupopen', async function() {
+                        const tripsContainer = document.getElementById(`trips-${props.shape_id}`);
+                        if (tripsContainer) {
+                            const trips = await fetchTripsForShape(props.shape_id);
+                            let html = '';
+                            
+                            if (!trips || trips.length === 0) {
+                                html = '<small style="color: #999;">No trips found for this route</small>';
+                            } else {
+                                // Group trips by service
+                                const tripsByService = {};
+                                trips.forEach(trip => {
+                                    const service = trip.service_id || 'Unknown Service';
+                                    if (!tripsByService[service]) {
+                                        tripsByService[service] = [];
+                                    }
+                                    tripsByService[service].push(trip);
+                                });
+                                
+                                html = '<div style="font-weight: bold; margin-bottom: 8px; color: #333;">Services & Trips:</div>';
+                                
+                                // Add each service
+                                Object.entries(tripsByService).forEach(([service, serviceTrips]) => {
+                                    html += `
+                                        <div style="background: #f5f5f5; padding: 8px; margin-bottom: 8px; border-left: 3px solid ${routeColor}; border-radius: 2px;">
+                                            <div style="font-weight: bold; color: #333; margin-bottom: 4px;">
+                                                Service: <span style="color: black;">${service}</span>
+                                            </div>
+                                            <div style="font-size: 10px; color: #666;">
+                                                <strong>${serviceTrips.length}</strong> trip${serviceTrips.length !== 1 ? 's' : ''} scheduled
+                                            </div>
+                                        </div>
+                                    `;
+                                });
+                            }
+                            
+                            tripsContainer.innerHTML = html;
+                        }
+                    });
+                    
+                    // Add to appropriate layer
+                    const targetLayer = window.featureLayers[`Shapes - ${getRouteTypeLabel(props.route_type)}`] 
+                        || window.featureLayers['Shapes - Other'];
+                    if (targetLayer) {
+                        targetLayer.addLayer(polyline);
+                        renderedCount++;
+                    }
+                }
+            } catch (err) {
+                console.error('Error rendering shape:', err);
+            }
+        }
+        
+        console.log(`✓ Rendered ${renderedCount} routes (trips load on-demand when clicked)`);
+        
+        if (spinner) spinner.style.display = 'none';
+    } catch (error) {
+        console.error('Error loading routes:', error);
+        if (spinner) spinner.style.display = 'none';
+    }
+}
+
+/**
+ * Create popup content for routes showing trips and services
+ */
+/**
+ * Get route type label for layer naming
+ */
+function getRouteTypeLabel(routeType) {
+    const labels = {
+        '0': 'Tram',
+        '1': 'Subway',
+        '2': 'Rail',
+        '3': 'Bus',
+        '4': 'Ferry',
+        '5': 'Cable Car',
+        '6': 'Gondola',
+        '7': 'Funicular',
+        '11': 'Trolleybus',
+        '12': 'Monorail'
+    };
+    return labels[String(routeType)] || 'Other';
+}
+
+// ==================== END ROUTES WITH TRIPS ====================
 
 function clearQuery() {
     queryLayer.clearLayers();

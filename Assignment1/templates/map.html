@@ -64,9 +64,22 @@
 
     <div class="container-fluid">
         <div class="row">
-            <!-- Left Sidebar - Controls -->
+            <!-- Left Sidebar - Controls, Stats, Layers, Legend -->
             <div class="col-lg-3 sidebar-left d-none d-lg-block" style="overflow-y: auto; border-right: 1px solid #ddd; max-height: 100%;">
                 <div class="control-panel">
+                    <!-- Statistics -->
+                    <h5 class="panel-title"><i class="fas fa-chart-bar"></i> Statistics</h5>
+                    <div class="stat-item">
+                        <div class="stat-label">Total Stops</div>
+                        <div class="stat-value" id="stopCount">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Routes</div>
+                        <div class="stat-value" id="routeCount">0</div>
+                    </div>
+
+                    <hr>
+
                     <h5 class="panel-title"><i class="fas fa-sliders-h"></i> Query Controls</h5>
                     
                     <!-- Tabs for different queries -->
@@ -195,33 +208,6 @@
                             <i class="fas fa-times"></i> Clear
                         </button>
                     </div>
-                </div>
-            </div>
-
-            <!-- Map -->
-            <div class="col-lg-7 map-container">
-                <div id="map"></div>
-                <div id="loading-spinner" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; display: none; text-align: center;">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mt-2 text-muted" id="loading-text">Loading shapes...</p>
-                </div>
-            </div>
-
-            <!-- Right Sidebar - Stats & Settings -->
-            <div class="col-lg-2 sidebar-right d-none d-lg-block">
-                <div class="control-panel">
-                    <!-- Statistics -->
-                    <h5 class="panel-title"><i class="fas fa-chart-bar"></i> Statistics</h5>
-                    <div class="stat-item">
-                        <div class="stat-label">Total Stops</div>
-                        <div class="stat-value" id="stopCount">0</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Routes</div>
-                        <div class="stat-value" id="routeCount">0</div>
-                    </div>
 
                     <hr>
 
@@ -236,9 +222,46 @@
                         </label>
                     </div>
                     
+                    <!-- Routes Section -->
+                    <div class="mt-2 mb-2">
+                        <small class="text-muted"><strong>Routes:</strong></small>
+                    </div>
+
+                    <!-- Bus Routes -->
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="layerRoutesBus" checked onchange="toggleLayer('routes-bus')">
+                        <label class="form-check-label" for="layerRoutesBus">
+                            <i class="fas fa-bus" style="color: #FFD700;"></i> Bus Routes
+                        </label>
+                    </div>
+
+                    <!-- Rail Routes -->
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="layerRoutesRail" checked onchange="toggleLayer('routes-rail')">
+                        <label class="form-check-label" for="layerRoutesRail">
+                            <i class="fas fa-train" style="color: #2E8B57;"></i> Rail Routes
+                        </label>
+                    </div>
+
+                    <!-- Tram Routes -->
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="layerRoutesTram" checked onchange="toggleLayer('routes-tram')">
+                        <label class="form-check-label" for="layerRoutesTram">
+                            <i class="fas fa-subway" style="color: #00BFFF;"></i> Tram Routes
+                        </label>
+                    </div>
+
+                    <!-- Ferry Routes -->
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="layerRoutesFerry" onchange="toggleLayer('routes-ferry')">
+                        <label class="form-check-label" for="layerRoutesFerry">
+                            <i class="fas fa-water" style="color: #FF6347;"></i> Ferry Routes
+                        </label>
+                    </div>
+                    
                     <!-- Shapes Section -->
                     <div class="mt-2 mb-2">
-                        <small class="text-muted"><strong>Service Types:</strong></small>
+                        <small class="text-muted"><strong>Shapes:</strong></small>
                     </div>
                     
                     <!-- Bus Shapes -->
@@ -293,13 +316,16 @@
                         <i class="fas fa-map-pin" style="color: #27ae60;"></i> Stop
                     </div>
                     <div class="legend-item">
-                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #FFDD00; border: 1px solid #000;"></div> Bus Route
+                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #FFD700; border: 1px solid #000;"></div> Bus Route
                     </div>
                     <div class="legend-item">
-                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #055305ff; border: 1px solid #000;"></div> Rail Route
+                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #2E8B57; border: 1px solid #000;"></div> Rail Route
                     </div>
                     <div class="legend-item">
-                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #0099FF; border: 1px solid #000;"></div> Tram Route
+                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #00BFFF; border: 1px solid #000;"></div> Tram Route
+                    </div>
+                    <div class="legend-item">
+                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #FF6347; border: 1px solid #000;"></div> Ferry Route
                     </div>
                     <div class="legend-item">
                         <i class="fas fa-star legend-icon"></i> Query Result
@@ -307,9 +333,15 @@
                 </div>
             </div>
 
-            <!-- Map Container - Full Height -->
-            <div class="col-lg-9" style="padding: 0; height: 100%; overflow: hidden;">
-                <div id="map" style="width: 100%; height: 100%;"></div>
+            <!-- Map -->
+            <div class="col-lg-9 map-container">
+                <div id="map"></div>
+                <div id="loading-spinner" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; display: none; text-align: center;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 text-muted" id="loading-text">Loading shapes...</p>
+                </div>
             </div>
         </div>
     </div>
