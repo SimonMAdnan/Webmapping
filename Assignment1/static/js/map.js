@@ -6,11 +6,13 @@ let map;
 let stopMarkers = L.featureGroup();
 let routeLayer = L.featureGroup();
 let queryLayer = L.featureGroup();
-let autoRefreshInterval = null;
 let layerControl = null;
 
 // Track loaded stops to avoid clearing
 let loadedStops = new Set();
+
+// Track if routes have been loaded
+let routesLoaded = false;
 
 // Cache settings
 const CACHE_KEY_STOPS = 'transport_stops_cache';
@@ -219,16 +221,13 @@ function initMap() {
     map.on('moveend', function() {
         console.log('Map moved');
         updateMapBounds();
-        loadStops();
     });
 
-    // Initial data load
+    // Initial data load - load routes in background but don't show them
     console.log('Starting initial data load');
-    loadStops();
     loadRoutesWithTripsAndServices();  // Load routes with trips and services (replaces loadShapesAndDisplay)
-    updateStatistics();
     
-    console.log('Map initialized with multiple tile layers');
+    console.log('Map initialized with all layers unchecked');
 }
 
 
@@ -709,60 +708,73 @@ function toggleLayer(layerName) {
     switch(layerName) {
         case 'stops':
             if (document.getElementById('layerStops').checked) {
-                window.featureLayers['Stops'].addTo(map);
+                loadStops().then(() => {
+                    window.featureLayers['Stops'].addTo(map);
+                    updateStatistics();
+                });
             } else {
                 map.removeLayer(window.featureLayers['Stops']);
             }
             break;
         case 'shapes-bus':
             if (document.getElementById('layerShapesBus').checked) {
-                window.featureLayers['Shapes - Bus'].addTo(map);
+                if (!routesLoaded) {
+                    loadRoutesWithTripsAndServices().then(() => {
+                        window.featureLayers['Shapes - Bus'].addTo(map);
+                    });
+                } else {
+                    window.featureLayers['Shapes - Bus'].addTo(map);
+                }
             } else {
                 map.removeLayer(window.featureLayers['Shapes - Bus']);
             }
             break;
         case 'shapes-rail':
             if (document.getElementById('layerShapesRail').checked) {
-                window.featureLayers['Shapes - Rail'].addTo(map);
+                if (!routesLoaded) {
+                    loadRoutesWithTripsAndServices().then(() => {
+                        window.featureLayers['Shapes - Rail'].addTo(map);
+                    });
+                } else {
+                    window.featureLayers['Shapes - Rail'].addTo(map);
+                }
             } else {
                 map.removeLayer(window.featureLayers['Shapes - Rail']);
             }
             break;
         case 'shapes-tram':
             if (document.getElementById('layerShapesTram').checked) {
-                window.featureLayers['Shapes - Tram'].addTo(map);
+                if (!routesLoaded) {
+                    loadRoutesWithTripsAndServices().then(() => {
+                        window.featureLayers['Shapes - Tram'].addTo(map);
+                    });
+                } else {
+                    window.featureLayers['Shapes - Tram'].addTo(map);
+                }
             } else {
                 map.removeLayer(window.featureLayers['Shapes - Tram']);
             }
             break;
         case 'shapes-other':
             if (document.getElementById('layerShapesOther').checked) {
-                window.featureLayers['Shapes - Other'].addTo(map);
+                if (!routesLoaded) {
+                    loadRoutesWithTripsAndServices().then(() => {
+                        window.featureLayers['Shapes - Other'].addTo(map);
+                    });
+                } else {
+                    window.featureLayers['Shapes - Other'].addTo(map);
+                }
             } else {
                 map.removeLayer(window.featureLayers['Shapes - Other']);
             }
             break;
-    }
-}
-
-function toggleAutoRefresh() {
-    const interval = parseInt(document.getElementById('refreshInterval').value) * 1000;
-    const button = event.target;
-
-    if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
-        autoRefreshInterval = null;
-        button.textContent = '▶️ Start Auto-refresh';
-        button.classList.remove('btn-danger');
-        button.classList.add('btn-secondary');
-    } else {
-        autoRefreshInterval = setInterval(() => {
-            loadStops();
-            updateStatistics();
-        }, interval);
-        button.textContent = '⏹️ Stop Auto-refresh';
-        button.classList.remove('btn-secondary');
-        button.classList.add('btn-danger');
+        case 'query-results':
+            if (document.getElementById('layerQueryResults').checked) {
+                window.featureLayers['Query Results'].addTo(map);
+            } else {
+                map.removeLayer(window.featureLayers['Query Results']);
+            }
+            break;
     }
 }
 
@@ -907,6 +919,8 @@ async function loadRoutesWithTripsAndServices() {
                             if (!trips || trips.length === 0) {
                                 html = '<small style="color: #999;">No trips found for this route</small>';
                             } else {
+                                console.log(`Fetched ${trips.length} trips for shape ${props.shape_id}:`, trips);
+                                
                                 // Group trips by route_short_name (number)
                                 const tripsByRouteNumber = {};
                                 trips.forEach(trip => {
@@ -916,6 +930,8 @@ async function loadRoutesWithTripsAndServices() {
                                     }
                                     tripsByRouteNumber[routeNumber].push(trip);
                                 });
+                                
+                                console.log(`Grouped into ${Object.keys(tripsByRouteNumber).length} unique route numbers:`, Object.keys(tripsByRouteNumber));
                                 
                                 html = '<div style="font-weight: bold; margin-bottom: 8px; color: #333;">Routes & Services:</div>';
                                 
@@ -974,6 +990,9 @@ async function loadRoutesWithTripsAndServices() {
         console.log(`✓ Rendered ${renderedCount} routes (trips load on-demand when clicked)`);
         
         if (spinner) spinner.style.display = 'none';
+        
+        // Mark routes as loaded
+        routesLoaded = true;
     } catch (error) {
         console.error('Error loading routes:', error);
         if (spinner) spinner.style.display = 'none';

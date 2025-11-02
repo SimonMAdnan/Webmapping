@@ -216,7 +216,7 @@
                     
                     <!-- Stops Layer -->
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="layerStops" checked onchange="toggleLayer('stops')">
+                        <input class="form-check-input" type="checkbox" id="layerStops" onchange="toggleLayer('stops')">
                         <label class="form-check-label" for="layerStops">
                             <i class="fas fa-map-pin" style="color: #27ae60;"></i> Stops
                         </label>
@@ -226,47 +226,10 @@
                     <div class="mt-2 mb-2">
                         <small class="text-muted"><strong>Routes:</strong></small>
                     </div>
-
-                    <!-- Bus Routes -->
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="layerRoutesBus" checked onchange="toggleLayer('routes-bus')">
-                        <label class="form-check-label" for="layerRoutesBus">
-                            <i class="fas fa-bus" style="color: #FFD700;"></i> Bus Routes
-                        </label>
-                    </div>
-
-                    <!-- Rail Routes -->
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="layerRoutesRail" checked onchange="toggleLayer('routes-rail')">
-                        <label class="form-check-label" for="layerRoutesRail">
-                            <i class="fas fa-train" style="color: #2E8B57;"></i> Rail Routes
-                        </label>
-                    </div>
-
-                    <!-- Tram Routes -->
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="layerRoutesTram" checked onchange="toggleLayer('routes-tram')">
-                        <label class="form-check-label" for="layerRoutesTram">
-                            <i class="fas fa-subway" style="color: #00BFFF;"></i> Tram Routes
-                        </label>
-                    </div>
-
-                    <!-- Ferry Routes -->
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="layerRoutesFerry" onchange="toggleLayer('routes-ferry')">
-                        <label class="form-check-label" for="layerRoutesFerry">
-                            <i class="fas fa-water" style="color: #FF6347;"></i> Ferry Routes
-                        </label>
-                    </div>
-                    
-                    <!-- Shapes Section -->
-                    <div class="mt-2 mb-2">
-                        <small class="text-muted"><strong>Shapes:</strong></small>
-                    </div>
                     
                     <!-- Bus Shapes -->
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="layerShapesBus" checked onchange="toggleLayer('shapes-bus')">
+                        <input class="form-check-input" type="checkbox" id="layerShapesBus" onchange="toggleLayer('shapes-bus')">
                         <label class="form-check-label" for="layerShapesBus">
                             <i class="fas fa-bus" style="color: #FFDD00;"></i> Bus
                         </label>
@@ -274,7 +237,7 @@
                     
                     <!-- Rail Shapes -->
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="layerShapesRail" checked onchange="toggleLayer('shapes-rail')">
+                        <input class="form-check-input" type="checkbox" id="layerShapesRail" onchange="toggleLayer('shapes-rail')">
                         <label class="form-check-label" for="layerShapesRail">
                             <i class="fas fa-train" style="color: #055305ff;"></i> Rail
                         </label>
@@ -282,7 +245,7 @@
                     
                     <!-- Tram Shapes -->
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="layerShapesTram" checked onchange="toggleLayer('shapes-tram')">
+                        <input class="form-check-input" type="checkbox" id="layerShapesTram" onchange="toggleLayer('shapes-tram')">
                         <label class="form-check-label" for="layerShapesTram">
                             <i class="fas fa-subway" style="color: #0099FF;"></i> Tram
                         </label>
@@ -290,7 +253,7 @@
                     
                     <!-- Other Shapes -->
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="layerShapesOther" checked onchange="toggleLayer('shapes-other')">
+                        <input class="form-check-input" type="checkbox" id="layerShapesOther" onchange="toggleLayer('shapes-other')">
                         <label class="form-check-label" for="layerShapesOther">
                             <i class="fas fa-route" style="color: #95a5a6;"></i> Other
                         </label>
@@ -298,15 +261,18 @@
 
                     <hr>
 
-                    <!-- Auto-Refresh Settings -->
-                    <h6 class="panel-title"><i class="fas fa-sync"></i> Auto-Refresh</h6>
-                    <div class="form-group">
-                        <label class="small">Interval (seconds)</label>
-                        <input type="number" id="refreshInterval" class="form-control form-control-sm" value="10" min="5" max="60">
+                    <!-- Query Results Section -->
+                    <div class="mt-2 mb-2">
+                        <small class="text-muted"><strong>Query:</strong></small>
                     </div>
-                    <button class="btn btn-secondary btn-sm w-100" id="refreshBtn" onclick="toggleAutoRefresh()">
-                        ▶️ Start Auto-refresh
-                    </button>
+
+                    <!-- Query Results Layer -->
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="layerQueryResults" onchange="toggleLayer('query-results')">
+                        <label class="form-check-label" for="layerQueryResults">
+                            <i class="fas fa-star" style="color: #FFD700;"></i> Results
+                        </label>
+                    </div>
 
                     <hr>
 
@@ -316,16 +282,13 @@
                         <i class="fas fa-map-pin" style="color: #27ae60;"></i> Stop
                     </div>
                     <div class="legend-item">
-                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #FFD700; border: 1px solid #000;"></div> Bus Route
+                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #FFDD00; border: 1px solid #000;"></div> Bus Route
                     </div>
                     <div class="legend-item">
-                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #2E8B57; border: 1px solid #000;"></div> Rail Route
+                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #055305ff; border: 1px solid #000;"></div> Rail Route
                     </div>
                     <div class="legend-item">
-                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #00BFFF; border: 1px solid #000;"></div> Tram Route
-                    </div>
-                    <div class="legend-item">
-                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #FF6347; border: 1px solid #000;"></div> Ferry Route
+                        <div style="display: inline-block; width: 12px; height: 3px; background-color: #0099FF; border: 1px solid #000;"></div> Tram Route
                     </div>
                     <div class="legend-item">
                         <i class="fas fa-star legend-icon"></i> Query Result

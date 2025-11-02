@@ -70,6 +70,11 @@ function initializeMapWithLayers(map) {
     const overlayLayers = {
         'Stops': L.featureGroup(),
         'Routes': L.featureGroup(),
+        'Routes - Bus': L.featureGroup(),
+        'Routes - Rail': L.featureGroup(),
+        'Routes - Tram': L.featureGroup(),
+        'Routes - Ferry': L.featureGroup(),
+        'Routes - Other': L.featureGroup(),
         'Shapes - Bus': L.featureGroup(),
         'Shapes - Rail': L.featureGroup(),
         'Shapes - Tram': L.featureGroup(),
@@ -79,23 +84,17 @@ function initializeMapWithLayers(map) {
     
     // Store in window scope for use by other scripts
     window.featureLayers = overlayLayers;
+
     
-    // Add overlays to map by default
-    overlayLayers['Stops'].addTo(map);
-    overlayLayers['Shapes - Bus'].addTo(map);
-    overlayLayers['Shapes - Rail'].addTo(map);
-    overlayLayers['Shapes - Tram'].addTo(map);
-    overlayLayers['Shapes - Other'].addTo(map);
-    overlayLayers['Query Results'].addTo(map);
-    
-    console.log('Feature layers added to map');
-    
-    // Create and add layer control
-    const layerControl = L.control.layers(baseLayers, overlayLayers, {
+    // Create and add layer control - only show base tile layers, not data overlays
+    const layerControl = L.control.layers(baseLayers, {}, {
         position: 'topright',
         collapsed: true
     });
     layerControl.addTo(map);
+    
+    // Move zoom controls to topright below layer control
+    map.zoomControl.setPosition('topright');
     
     return { baseLayers, overlayLayers };
 }

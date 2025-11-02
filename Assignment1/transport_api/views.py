@@ -258,7 +258,8 @@ class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'error': 'shape_id required'}, status=status.HTTP_400_BAD_REQUEST)
         
         # Get all trips for this shape with full details including service
-        trips = Trip.objects.filter(shape_id=shape_id).select_related('route').order_by('service_id')
+        # Order by route and service to group related trips together
+        trips = Trip.objects.filter(shape_id=shape_id).select_related('route').order_by('route__route_short_name', 'service_id')
         
         data = []
         for trip in trips:
