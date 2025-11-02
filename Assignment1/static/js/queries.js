@@ -14,7 +14,8 @@ async function performRadiusSearch() {
     }
 
     try {
-        queryLayer.clearLayers();
+        const layer = window.queryLayer || queryLayer;
+        layer.clearLayers();
         const circle = L.circle([lat, lon], {
             radius: radius,
             color: 'blue',
@@ -23,7 +24,7 @@ async function performRadiusSearch() {
             dashArray: '5, 5',
             opacity: 0.7
         });
-        queryLayer.addLayer(circle);
+        layer.addLayer(circle);
 
         if (queryType === 'routes') {
             // For routes, we need to search for shapes/routes near the point
@@ -32,8 +33,9 @@ async function performRadiusSearch() {
             const data = await response.json();
             displayRouteResults(data.results || []);
         } else {
-            // For stops
-            const endpoint = `/api/${queryType}/nearby/?lat=${lat}&lon=${lon}&distance=${radius}`;
+            // For stops - convert meters to km
+            const distanceKm = radius / 1000;
+            const endpoint = `/api/${queryType}/nearby/?lat=${lat}&lon=${lon}&distance_km=${distanceKm}`;
             const response = await fetch(endpoint);
             const data = await response.json();
             displayResults(data.results, `Radius Search: ${data.results.length} ${queryType} found`, lat, lon);
@@ -57,7 +59,8 @@ async function performBoundsSearch() {
     }
 
     try {
-        queryLayer.clearLayers();
+        const layer = window.queryLayer || queryLayer;
+        layer.clearLayers();
         const bounds = [[minLat, minLon], [maxLat, maxLon]];
         const rectangle = L.rectangle(bounds, {
             color: 'green',
@@ -66,7 +69,7 @@ async function performBoundsSearch() {
             dashArray: '5, 5',
             opacity: 0.7
         });
-        queryLayer.addLayer(rectangle);
+        layer.addLayer(rectangle);
 
         if (queryType === 'routes') {
             // For routes, use shapes endpoint
@@ -115,7 +118,7 @@ async function performAdvancedQuery() {
                 alert('Please enter valid coordinates');
                 return;
             }
-            endpoint = '/api/stops/nearby/?lat=' + lat + '&lon=' + lon + '&distance=5000';
+            endpoint = '/api/stops/nearby/?lat=' + lat + '&lon=' + lon + '&distance_km=5';
         } else if (queryType === 'routes-bbox') {
             endpoint = '/api/shapes/in_bounds/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
         }
@@ -137,30 +140,40 @@ async function performAdvancedQuery() {
 }
 
 function displayResults(results, title, centerLat, centerLon) {
-    queryLayer.clearLayers();
+    const layer = window.queryLayer || queryLayer;
+    layer.clearLayers();
     
-    results.forEach(result => {
-        if (result.geometry && result.geometry.coordinates) {
-            const coords = result.geometry.coordinates;
-            const marker = L.marker([coords[1], coords[0]], {
-                icon: L.divIcon({
-                    className: 'query-result-icon',
-                    html: '<i class="fas fa-star"></i>',
-                    iconSize: [25, 25],
-                    iconAnchor: [12, 12]
-                })
-            });
+    results.forEach((result, idx) => {
+        // Handle GeoJSON feature format
+        const geom = result.geometry;
+        const props = result.properties || result;
+        
+        if (geom && geom.coordinates) {
+            const coords = geom.coordinates;
+            
+            // Only create markers for Point geometries
+            if (geom.type === 'Point') {
+                const marker = L.marker([coords[1], coords[0]], {
+                    icon: L.divIcon({
+                        className: 'query-result-icon',
+                        html: '<i class="fas fa-star"></i>',
+                        iconSize: [25, 25],
+                        iconAnchor: [12, 12]
+                    })
+                });
 
-            const popupContent = `
-                <div class="popup-content">
-                    <strong>${result.stop_name || result.vehicle_id || result.route_short_name}</strong><br>
-                    ${result.stop_code ? 'Code: ' + result.stop_code + '<br>' : ''}
-                    ${result.speed ? 'Speed: ' + result.speed.toFixed(1) + ' km/h<br>' : ''}
-                    ${result.status ? 'Status: ' + result.status + '<br>' : ''}
-                </div>
-            `;
-            marker.bindPopup(popupContent);
-            queryLayer.addLayer(marker);
+                const popupContent = `
+                    <div class="popup-content">
+                        <strong>${props.stop_name || props.vehicle_id || props.route_short_name}</strong><br>
+                        ${props.stop_code ? 'Code: ' + props.stop_code + '<br>' : ''}
+                        ${props.stop_type ? 'Type: ' + props.stop_type + '<br>' : ''}
+                        ${props.speed ? 'Speed: ' + props.speed.toFixed(1) + ' km/h<br>' : ''}
+                        ${props.status ? 'Status: ' + props.status + '<br>' : ''}
+                    </div>
+                `;
+                marker.bindPopup(popupContent);
+                layer.addLayer(marker);
+            }
         }
     });
 
@@ -172,7 +185,8 @@ function displayResults(results, title, centerLat, centerLon) {
 }
 
 function displayCongestionResults(clusters) {
-    queryLayer.clearLayers();
+    const layer = window.queryLayer || queryLayer;
+    layer.clearLayers();
 
     clusters.forEach((cluster, index) => {
         if (cluster.center && cluster.center.coordinates) {
@@ -198,12 +212,12 @@ function displayCongestionResults(clusters) {
                 </div>
             `;
             circle.bindPopup(popupContent);
-            queryLayer.addLayer(circle);
+            layer.addLayer(circle);
         }
     });
 
-    if (clusters.length > 0) {
-        map.fitBounds(queryLayer.getBounds(), { padding: [50, 50] });
+    if (layer.getLayers().length > 0) {
+        map.fitBounds(layer.getBounds(), { padding: [50, 50] });
     }
 
     displayResultsList(clusters, `Congestion Analysis: ${clusters.length} zones detected`);
@@ -266,7 +280,8 @@ function displayResultsList(results, title) {
 }
 
 function displayRouteResults(shapes) {
-    queryLayer.clearLayers();
+    const layer = window.queryLayer || queryLayer;
+    layer.clearLayers();
 
     // Group shapes by route for better display
     const shapesByRoute = {};
@@ -304,13 +319,13 @@ function displayRouteResults(shapes) {
                     </div>
                 `;
                 polyline.bindPopup(popupContent);
-                queryLayer.addLayer(polyline);
+                layer.addLayer(polyline);
             }
         });
     });
 
-    if (queryLayer.getLayers().length > 0) {
-        map.fitBounds(queryLayer.getBounds(), { padding: [50, 50] });
+    if (layer.getLayers().length > 0) {
+        map.fitBounds(layer.getBounds(), { padding: [50, 50] });
     }
 
     displayResultsList(shapes, `Routes in Area: ${Object.keys(shapesByRoute).length} routes found`);
