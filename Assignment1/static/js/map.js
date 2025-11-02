@@ -407,7 +407,7 @@ function createStopMarker(stop) {
         const props = stop.properties || stop;
         const stopId = props.id || stop.id;
         
-        console.log('Creating stop marker:', { coords, stop_name: props.stop_name });
+        //console.log('Creating stop marker:', { coords, stop_name: props.stop_name });
         
         const marker = L.circleMarker([coords[1], coords[0]], {
             radius: 10,

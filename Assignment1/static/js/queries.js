@@ -114,14 +114,14 @@ async function performRadiusSearch() {
             // For routes, we need to search for shapes/routes near the point
             const distanceKm = radius / 1000;
             const endpoint = `/api/shapes/nearby/?lat=${lat}&lon=${lon}&distance_km=${distanceKm}`;
-            console.log('Fetching routes from radius:', endpoint);
+            // console.log('Fetching routes from radius:', endpoint);
             const response = await fetch(endpoint);
             const data = await response.json();
-            console.log('Radius routes response:', data);
+            // console.log('Radius routes response:', data);
             
             // Add routes directly to layer (don't use displayRouteResults which clears the layer)
             const routesResults = data.results || [];
-            console.log('Routes count:', routesResults.length);
+            // console.log('Routes count:', routesResults.length);
             routesResults.forEach((route, idx) => {
                 const props = route.properties || route;
                 const coordinates = route.geometry?.coordinates;
