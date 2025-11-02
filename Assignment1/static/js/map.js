@@ -89,6 +89,22 @@ function getRouteTypeColor(routeType) {
     return ROUTE_TYPE_COLORS[routeType] || '#3498db';
 }
 
+function getRouteTypeIcon(routeType) {
+    const icons = {
+        0: '🚊',    // Tram
+        1: '🚇',    // Subway
+        2: '🚂',    // Rail
+        3: '🚌',    // Bus
+        4: '⛴️',     // Ferry
+        5: '🚡',    // Cable Car
+        6: '🚡',    // Gondola
+        7: '🚞',    // Funicular
+        11: '🚌',   // Trolleybus
+        12: '🚝'    // Monorail
+    };
+    return icons[String(routeType)] || '🚌';
+}
+
 // IndexedDB for large data caching
 const DB_NAME = 'TransportDB';
 const STORE_NAME = 'shapes';
@@ -891,27 +907,47 @@ async function loadRoutesWithTripsAndServices() {
                             if (!trips || trips.length === 0) {
                                 html = '<small style="color: #999;">No trips found for this route</small>';
                             } else {
-                                // Group trips by service
-                                const tripsByService = {};
+                                // Group trips by route_short_name (number)
+                                const tripsByRouteNumber = {};
                                 trips.forEach(trip => {
-                                    const service = trip.service_id || 'Unknown Service';
-                                    if (!tripsByService[service]) {
-                                        tripsByService[service] = [];
+                                    const routeNumber = trip.route_short_name || 'Unknown Route';
+                                    if (!tripsByRouteNumber[routeNumber]) {
+                                        tripsByRouteNumber[routeNumber] = [];
                                     }
-                                    tripsByService[service].push(trip);
+                                    tripsByRouteNumber[routeNumber].push(trip);
                                 });
                                 
-                                html = '<div style="font-weight: bold; margin-bottom: 8px; color: #333;">Services & Trips:</div>';
+                                html = '<div style="font-weight: bold; margin-bottom: 8px; color: #333;">Routes & Services:</div>';
                                 
-                                // Add each service
-                                Object.entries(tripsByService).forEach(([service, serviceTrips]) => {
+                                // Add each route number with its services
+                                Object.entries(tripsByRouteNumber).forEach(([routeNumber, routeTrips]) => {
+                                    // Get the service type from first trip
+                                    const firstTrip = routeTrips[0];
+                                    const serviceType = getRouteTypeName(firstTrip.route_type);
+                                    const serviceTypeIcon = getRouteTypeIcon(firstTrip.route_type);
+                                    
+                                    // Group this route's trips by service
+                                    const servicesByRoute = {};
+                                    routeTrips.forEach(trip => {
+                                        const service = trip.service_id || 'Unknown';
+                                        if (!servicesByRoute[service]) {
+                                            servicesByRoute[service] = [];
+                                        }
+                                        servicesByRoute[service].push(trip);
+                                    });
+                                    
                                     html += `
                                         <div style="background: #f5f5f5; padding: 8px; margin-bottom: 8px; border-left: 3px solid ${routeColor}; border-radius: 2px;">
                                             <div style="font-weight: bold; color: #333; margin-bottom: 4px;">
-                                                Service: <span style="color: black;">${service}</span>
+                                                ${serviceTypeIcon} <span style="color: black; font-size: 14px;">${routeNumber}</span>
+                                                <span style="background: ${getRouteTypeColor(firstTrip.route_type)}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 9px; margin-left: 8px;">
+                                                    ${serviceType}
+                                                </span>
                                             </div>
-                                            <div style="font-size: 10px; color: #666;">
-                                                <strong>${serviceTrips.length}</strong> trip${serviceTrips.length !== 1 ? 's' : ''} scheduled
+                                            <div style="font-size: 10px; color: #666; margin-left: 8px;">
+                                                ${Object.entries(servicesByRoute).map(([service, trips]) => 
+                                                    `Service ${service}: <strong>${trips.length}</strong> trip${trips.length !== 1 ? 's' : ''}`
+                                                ).join('<br>')}
                                             </div>
                                         </div>
                                     `;
