@@ -14,6 +14,16 @@ let loadedStops = new Set();
 // Track if routes have been loaded
 let routesLoaded = false;
 
+// Track temporary bound markers
+let boundsMarkers = {
+    point1: null,
+    point2: null,
+    clickCount: 0
+};
+
+// Expose boundsMarkers globally for queries.js
+window.boundsMarkers = boundsMarkers;
+
 // Cache settings
 const CACHE_KEY_STOPS = 'transport_stops_cache';
 const CACHE_KEY_SHAPES = 'transport_shapes_cache';
@@ -244,6 +254,63 @@ function initMap() {
             nearestLatInput.value = lat.toFixed(4);
             nearestLonInput.value = lon.toFixed(4);
             console.log(`Updated nearest stops coordinates to: ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+        }
+        
+        // Add temporary marker for bounds query
+        boundsMarkers.clickCount++;
+        const layer = window.queryLayer || queryLayer;
+        
+        if (boundsMarkers.clickCount % 2 === 1) {
+            // First click - create or replace point 1
+            if (boundsMarkers.point1) {
+                layer.removeLayer(boundsMarkers.point1);
+            }
+            boundsMarkers.point1 = L.marker([lat, lon], {
+                icon: L.divIcon({
+                    className: 'bounds-marker point1-marker',
+                    html: '<div style="background-color: #27ae60; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);">1</div>',
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                })
+            });
+            layer.addLayer(boundsMarkers.point1);
+            window.boundsMarkers = boundsMarkers;  // Update global reference
+            
+            // Point 1 sets max latitude and max longitude
+            const maxLatInput = document.getElementById('bboxMaxLat');
+            const maxLonInput = document.getElementById('bboxMaxLon');
+            if (maxLatInput && maxLonInput) {
+                maxLatInput.value = lat.toFixed(4);
+                maxLonInput.value = lon.toFixed(4);
+                console.log(`Point 1 set to: ${lat.toFixed(4)}, ${lon.toFixed(4)} (Max Lat, Max Lon)`);
+            }
+        } else {
+            // Second click - create or replace point 2
+            if (boundsMarkers.point2) {
+                layer.removeLayer(boundsMarkers.point2);
+            }
+            boundsMarkers.point2 = L.marker([lat, lon], {
+                icon: L.divIcon({
+                    className: 'bounds-marker point2-marker',
+                    html: '<div style="background-color: #e74c3c; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);">2</div>',
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                })
+            });
+            layer.addLayer(boundsMarkers.point2);
+            window.boundsMarkers = boundsMarkers;  // Update global reference
+            
+            // Point 2 sets min latitude and min longitude
+            const minLatInput = document.getElementById('bboxMinLat');
+            const minLonInput = document.getElementById('bboxMinLon');
+            if (minLatInput && minLonInput) {
+                minLatInput.value = lat.toFixed(4);
+                minLonInput.value = lon.toFixed(4);
+                console.log(`Point 2 set to: ${lat.toFixed(4)}, ${lon.toFixed(4)} (Min Lat, Min Lon)`);
+            }
+            
+            // Reset counter for next pair
+            boundsMarkers.clickCount = 0;
         }
         
         // Also update bounding box with a small area around the click point

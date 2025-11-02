@@ -28,20 +28,50 @@ async function performRadiusSearch() {
 
         if (queryType === 'routes') {
             // For routes, we need to search for shapes/routes near the point
-            const endpoint = `/api/shapes/in_bounds/?min_lat=${lat - 0.05}&max_lat=${lat + 0.05}&min_lon=${lon - 0.05}&max_lon=${lon + 0.05}`;
+            const distanceKm = radius / 1000;
+            const endpoint = `/api/shapes/nearby/?lat=${lat}&lon=${lon}&distance_km=${distanceKm}`;
             const response = await fetch(endpoint);
             const data = await response.json();
-            displayRouteResults(data.results || []);
+            
+            // Add routes directly to layer (don't use displayRouteResults which clears the layer)
+            const routesResults = data.results || [];
+            routesResults.forEach(route => {
+                const props = route.properties || route;
+                const coordinates = route.geometry?.coordinates;
+                if (coordinates && Array.isArray(coordinates)) {
+                    const latLngs = coordinates.map(coord => [coord[1], coord[0]]);
+                    const polyline = L.polyline(latLngs, {
+                        color: '#9b59b6',
+                        weight: 4,
+                        opacity: 0.8,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                    });
+                    // Enhanced popup with all route data
+                    const popupContent = `
+                        <div class="popup-content">
+                            <strong>${props.route_short_name || 'Route'}</strong><br>
+                            ${props.route_long_name ? `<small>${props.route_long_name}</small><br>` : ''}
+                            Route ID: ${props.route_id || 'N/A'}<br>
+                            ${props.route_type ? `Type: ${getRouteTypeName(props.route_type)}<br>` : ''}
+                            ${props.route_color ? `<small>Color: #${props.route_color}</small>` : ''}
+                        </div>
+                    `;
+                    polyline.bindPopup(popupContent);
+                    layer.addLayer(polyline);
+                }
+            });
+            
+            // Display results in the results panel
+            displayResultsList(routesResults, `Radius Search: ${routesResults.length} routes found`);
         } else if (queryType === 'both') {
             // For BOTH stops and routes - fetch stops first, add to layer, then routes
             const distanceKm = radius / 1000;
             const stopsUrl = `/api/stops/nearby/?lat=${lat}&lon=${lon}&distance_km=${distanceKm}`;
             const shapesUrl = `/api/shapes/nearby/?lat=${lat}&lon=${lon}&distance_km=${distanceKm}`;
             
-            console.log('Fetching stops from:', stopsUrl);
             const stopsResp = await fetch(stopsUrl);
             const stopsData = await stopsResp.json();
-            console.log('Stops received:', stopsData.results ? stopsData.results.length : 0);
             
             // Add stops to map
             const stopsResults = stopsData.results || [];
@@ -75,16 +105,17 @@ async function performRadiusSearch() {
                 }
             });
             
-            console.log('Fetching routes from:', shapesUrl);
             const routesResp = await fetch(shapesUrl);
             const routesData = await routesResp.json();
-            console.log('Routes received:', routesData.results ? routesData.results.length : 0);
+            console.log('Radius both - Routes data:', routesData);
             
             // Add routes to map
             const routesResults = routesData.results || [];
+            console.log('Radius both - Routes count:', routesResults.length);
             routesResults.forEach(route => {
                 const props = route.properties || route;
                 const coordinates = route.geometry?.coordinates;
+                console.log('Radius both - Route:', props.route_short_name, 'has coords:', !!coordinates);
                 if (coordinates && Array.isArray(coordinates)) {
                     const latLngs = coordinates.map(coord => [coord[1], coord[0]]);
                     const polyline = L.polyline(latLngs, {
@@ -104,72 +135,27 @@ async function performRadiusSearch() {
                     `;
                     polyline.bindPopup(popupContent);
                     layer.addLayer(polyline);
+                    console.log('Radius both - Added route to layer');
                 }
             });
             
             // Display results in the results panel
+            console.log('Radius both - Display results. Stops:', stopsResults.length, 'Routes:', routesResults.length);
             displayBothResults(stopsResults, routesResults);
             return;
         } else {
-            // For stops - convert meters to km
+            // For stops - convert meters to km, don't use displayResults as it clears layers
             const distanceKm = radius / 1000;
             const endpoint = `/api/stops/nearby/?lat=${lat}&lon=${lon}&distance_km=${distanceKm}`;
             const response = await fetch(endpoint);
             const data = await response.json();
-            displayResults(data.results, `Radius Search: ${data.results.length} stops found`, lat, lon);
-        }
-    } catch (error) {
-        console.error('Error performing radius search:', error);
-        alert('Error performing search');
-    }
-}
-
-async function performBoundsSearch() {
-    const minLat = parseFloat(document.getElementById('bboxMinLat').value);
-    const maxLat = parseFloat(document.getElementById('bboxMaxLat').value);
-    const minLon = parseFloat(document.getElementById('bboxMinLon').value);
-    const maxLon = parseFloat(document.getElementById('bboxMaxLon').value);
-    const queryType = document.getElementById('boundsType').value;
-
-    if (isNaN(minLat) || isNaN(maxLat) || isNaN(minLon) || isNaN(maxLon)) {
-        alert('Please enter valid bounding box coordinates');
-        return;
-    }
-
-    try {
-        const layer = window.queryLayer || queryLayer;
-        layer.clearLayers();
-        const bounds = [[minLat, minLon], [maxLat, maxLon]];
-        const rectangle = L.rectangle(bounds, {
-            color: 'green',
-            fill: false,
-            weight: 2,
-            dashArray: '5, 5',
-            opacity: 0.7
-        });
-        layer.addLayer(rectangle);
-
-        if (queryType === 'routes') {
-            // For routes, use shapes endpoint
-            const endpoint = `/api/shapes/in_bounds/?min_lat=${minLat}&max_lat=${maxLat}&min_lon=${minLon}&max_lon=${maxLon}`;
-            const response = await fetch(endpoint);
-            const data = await response.json();
-            displayRouteResults(data.results || []);
-        } else if (queryType === 'both') {
-            // For BOTH stops and routes - fetch stops first, add to layer, then routes
-            const stopsUrl = `/api/stops/in_bounds/?min_lat=${minLat}&max_lat=${maxLat}&min_lon=${minLon}&max_lon=${maxLon}`;
-            const shapesUrl = `/api/shapes/in_bounds/?min_lat=${minLat}&max_lat=${maxLat}&min_lon=${minLon}&max_lon=${maxLon}`;
             
-            console.log('Fetching stops from:', stopsUrl);
-            const stopsResp = await fetch(stopsUrl);
-            const stopsData = await stopsResp.json();
-            console.log('Stops received:', stopsData.results ? stopsData.results.length : 0);
-            
-            // Add stops to map
-            const stopsResults = stopsData.results || [];
+            // Add stops directly to layer (don't clear - circle already exists)
+            const stopsResults = data.results || [];
             stopsResults.forEach(stop => {
                 const props = stop.properties || stop;
-                const coords = stop.geometry?.coordinates || stop.point;
+                const coords = stop.geometry?.coordinates;
+                
                 if (coords) {
                     const marker = L.marker([coords[1], coords[0]], {
                         icon: L.divIcon({
@@ -182,11 +168,11 @@ async function performBoundsSearch() {
                     // Enhanced popup with all stop data
                     const popupContent = `
                         <div class="popup-content">
-                            <strong>${stop.name || stop.stop_name}</strong><br>
-                            <small>Stop ID: ${stop.stop_id}</small><br>
-                            ${stop.stop_code ? `Code: ${stop.stop_code}<br>` : ''}
-                            ${stop.stop_type ? `Type: ${stop.stop_type}<br>` : ''}
-                            ${stop.description ? `Description: ${stop.description}<br>` : ''}
+                            <strong>${props.stop_name || props.name || 'Stop'}</strong><br>
+                            <small>Stop ID: ${props.stop_id || 'N/A'}</small><br>
+                            ${props.stop_code ? `Code: ${props.stop_code}<br>` : ''}
+                            ${props.stop_type ? `Type: ${props.stop_type}<br>` : ''}
+                            ${props.stop_desc ? `Description: ${props.stop_desc}<br>` : ''}
                             <small>(${coords[1].toFixed(4)}, ${coords[0].toFixed(4)})</small>
                         </div>
                     `;
@@ -195,13 +181,78 @@ async function performBoundsSearch() {
                 }
             });
             
-            console.log('Fetching routes from:', shapesUrl);
-            const routesResp = await fetch(shapesUrl);
-            const routesData = await routesResp.json();
-            console.log('Routes received:', routesData.results ? routesData.results.length : 0);
+            // Display results in the results panel (without clearing layers)
+            displayResultsList(stopsResults, `Radius Search: ${stopsResults.length} stops found`);
+        }
+    } catch (error) {
+        console.error('Error performing radius search:', error);
+        alert('Error performing search');
+    }
+}
+
+async function performBoundsSearch() {
+    let minLat = parseFloat(document.getElementById('bboxMinLat').value);
+    let maxLat = parseFloat(document.getElementById('bboxMaxLat').value);
+    let minLon = parseFloat(document.getElementById('bboxMinLon').value);
+    let maxLon = parseFloat(document.getElementById('bboxMaxLon').value);
+    const queryType = document.getElementById('boundsType').value;
+
+    if (isNaN(minLat) || isNaN(maxLat) || isNaN(minLon) || isNaN(maxLon)) {
+        alert('Please enter valid bounding box coordinates');
+        return;
+    }
+
+    // If both markers exist, recalculate bounds from them to ensure correct min/max
+    if (window.boundsMarkers && window.boundsMarkers.point1 && window.boundsMarkers.point2) {
+        const p1 = window.boundsMarkers.point1.getLatLng();
+        const p2 = window.boundsMarkers.point2.getLatLng();
+        
+        // Ensure correct min/max ordering
+        minLat = Math.min(p1.lat, p2.lat);
+        maxLat = Math.max(p1.lat, p2.lat);
+        minLon = Math.min(p1.lng, p2.lng);
+        maxLon = Math.max(p1.lng, p2.lng);
+        
+        console.log(`Recalculated bounds from markers: minLat=${minLat}, maxLat=${maxLat}, minLon=${minLon}, maxLon=${maxLon}`);
+    }
+
+    try {
+        const layer = window.queryLayer || queryLayer;
+        layer.clearLayers();
+        
+        // Create a separate rectangle that will persist
+        let rectangleLayer = L.featureGroup();
+        
+        // Draw rectangle with calculated bounds
+        const boundsForRect = [[minLat, minLon], [maxLat, maxLon]];
+        const rectangle = L.rectangle(boundsForRect, {
+            color: '#9b59b6',
+            fill: true,
+            fillColor: '#9b59b6',
+            fillOpacity: 0.1,
+            weight: 3,
+            opacity: 0.8,
+            dashArray: '5, 5'
+        });
+        rectangleLayer.addLayer(rectangle);
+        
+        // Re-add the markers on top if they exist
+        if (window.boundsMarkers && window.boundsMarkers.point1) rectangleLayer.addLayer(window.boundsMarkers.point1);
+        if (window.boundsMarkers && window.boundsMarkers.point2) rectangleLayer.addLayer(window.boundsMarkers.point2);
+        
+        console.log('Drawing rectangle with bounds:', boundsForRect);
+
+        // Add rectangle layer FIRST so results appear on top
+        layer.addLayer(rectangleLayer);
+
+        if (queryType === 'routes') {
+            // For routes, use shapes endpoint
+            const endpoint = `/api/shapes/in_bounds/?min_lat=${minLat}&max_lat=${maxLat}&min_lon=${minLon}&max_lon=${maxLon}`;
+            const response = await fetch(endpoint);
+            const data = await response.json();
             
-            // Add routes to map
-            const routesResults = routesData.results || [];
+            // Add routes directly to layer (don't use displayRouteResults which clears the layer)
+            const routesResults = data.results || [];
             routesResults.forEach(route => {
                 const props = route.properties || route;
                 const coordinates = route.geometry?.coordinates;
@@ -230,58 +281,11 @@ async function performBoundsSearch() {
             });
             
             // Display results in the results panel
-            displayBothResults(stopsResults, routesResults);
-        } else {
-            // For stops
-            const endpoint = `/api/stops/in_bounds/?min_lat=${minLat}&max_lat=${maxLat}&min_lon=${minLon}&max_lon=${maxLon}`;
-            const response = await fetch(endpoint);
-            const data = await response.json();
-            displayResults(data.results, `Bounds Search: ${data.results.length} stops found`, (minLat + maxLat) / 2, (minLon + maxLon) / 2);
-        }
-    } catch (error) {
-        console.error('Error performing bounds search:', error);
-        alert('Error performing search');
-    }
-}
-
-async function performAdvancedQuery() {
-    const queryType = document.getElementById('advancedQueryType').value;
-    const minLat = parseFloat(document.getElementById('bboxMinLat').value);
-    const maxLat = parseFloat(document.getElementById('bboxMaxLat').value);
-    const minLon = parseFloat(document.getElementById('bboxMinLon').value);
-    const maxLon = parseFloat(document.getElementById('bboxMaxLon').value);
-
-    try {
-        let endpoint;
-        let title;
-        
-        if (queryType === 'congestion') {
-            endpoint = '/api/vehicles/congestion/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
-        } else if (queryType === 'route-analysis') {
-            const routeId = document.getElementById('routeSelect').value;
-            if (!routeId) {
-                alert('Please select a route');
-                return;
-            }
-            endpoint = '/api/routes/' + routeId + '/';
-        } else if (queryType === 'nearest-stops') {
-            const lat = parseFloat(document.getElementById('nearestLat').value);
-            const lon = parseFloat(document.getElementById('nearestLon').value);
-            const count = parseInt(document.getElementById('nearestCount').value) || 5;
-            if (isNaN(lat) || isNaN(lon)) {
-                alert('Please enter valid coordinates');
-                return;
-            }
-            endpoint = '/api/stops/nearby/?lat=' + lat + '&lon=' + lon + '&distance_km=5';
-        } else if (queryType === 'routes-bbox') {
-            endpoint = '/api/shapes/in_bounds/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
-        } else if (queryType === 'both-bbox') {
-            // For BOTH stops and routes in bounding box - fetch stops first, add to layer, then routes
-            const layer = window.queryLayer || queryLayer;
-            layer.clearLayers();
-            
-            const stopsUrl = '/api/stops/in_bounds/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
-            const shapesUrl = '/api/shapes/in_bounds/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
+            displayResultsList(routesResults, `Bounds Search: ${routesResults.length} routes found`);
+        } else if (queryType === 'both') {
+            // For BOTH stops and routes - fetch stops first, add to layer, then routes
+            const stopsUrl = `/api/stops/in_bounds/?min_lat=${minLat}&max_lat=${maxLat}&min_lon=${minLon}&max_lon=${maxLon}`;
+            const shapesUrl = `/api/shapes/in_bounds/?min_lat=${minLat}&max_lat=${maxLat}&min_lon=${minLon}&max_lon=${maxLon}`;
             
             console.log('Fetching stops from:', stopsUrl);
             const stopsResp = await fetch(stopsUrl);
@@ -318,16 +322,230 @@ async function performAdvancedQuery() {
                 }
             });
             
-            console.log('Fetching routes from:', shapesUrl);
             const routesResp = await fetch(shapesUrl);
             const routesData = await routesResp.json();
-            console.log('Routes received:', routesData.results ? routesData.results.length : 0);
+            console.log('Bounds both - Routes data:', routesData);
             
             // Add routes to map
             const routesResults = routesData.results || [];
+            console.log('Bounds both - Routes count:', routesResults.length);
+            routesResults.forEach(route => {
+                const props = route.properties || route;
+                const coordinates = route.geometry?.coordinates;
+                console.log('Bounds both - Route:', props.route_short_name, 'has coords:', !!coordinates);
+                if (coordinates && Array.isArray(coordinates)) {
+                    const latLngs = coordinates.map(coord => [coord[1], coord[0]]);
+                    const polyline = L.polyline(latLngs, {
+                        color: '#9b59b6',
+                        weight: 4,
+                        opacity: 0.8,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                    });
+                    // Enhanced popup with all route data
+                    const popupContent = `
+                        <div class="popup-content">
+                            <strong>${props.route_short_name || 'Route'}</strong><br>
+                            ${props.route_long_name ? `<small>${props.route_long_name}</small><br>` : ''}
+                            Route ID: ${props.route_id || 'N/A'}<br>
+                            ${props.route_type ? `Type: ${getRouteTypeName(props.route_type)}<br>` : ''}
+                            ${props.route_color ? `<small>Color: #${props.route_color}</small>` : ''}
+                        </div>
+                    `;
+                    polyline.bindPopup(popupContent);
+                    layer.addLayer(polyline);
+                    console.log('Bounds both - Added route to layer');
+                }
+            });
+            
+            // Display results in the results panel
+            console.log('Bounds both - Display results. Stops:', stopsResults.length, 'Routes:', routesResults.length);
+            displayBothResults(stopsResults, routesResults);
+        } else {
+            // For stops - don't use displayResults as it clears layers
+            const endpoint = `/api/stops/in_bounds/?min_lat=${minLat}&max_lat=${maxLat}&min_lon=${minLon}&max_lon=${maxLon}`;
+            const response = await fetch(endpoint);
+            const data = await response.json();
+            
+            // Add stops directly to layer (don't clear - rectangle already exists)
+            const stopsResults = data.results || [];
+            stopsResults.forEach(stop => {
+                const props = stop.properties || stop;
+                const coords = stop.geometry?.coordinates || stop.point;
+                if (coords) {
+                    const marker = L.marker([coords[1], coords[0]], {
+                        icon: L.divIcon({
+                            className: 'query-marker stop-marker',
+                            html: '<i class="fas fa-star" style="color: #9b59b6; font-size: 32px; text-shadow: -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white, 1px 1px 0 white;"></i>',
+                            iconSize: [50, 50],
+                            iconAnchor: [25, 25]
+                        })
+                    });
+                    // Enhanced popup with all stop data
+                    const popupContent = `
+                        <div class="popup-content">
+                            <strong>${props.stop_name || props.name || 'Stop'}</strong><br>
+                            <small>Stop ID: ${props.stop_id || 'N/A'}</small><br>
+                            ${props.stop_code ? `Code: ${props.stop_code}<br>` : ''}
+                            ${props.stop_type ? `Type: ${props.stop_type}<br>` : ''}
+                            ${props.stop_desc ? `Description: ${props.stop_desc}<br>` : ''}
+                            <small>(${coords[1].toFixed(4)}, ${coords[0].toFixed(4)})</small>
+                        </div>
+                    `;
+                    marker.bindPopup(popupContent);
+                    layer.addLayer(marker);
+                }
+            });
+            
+            // Display results in the results panel (without clearing layers)
+            displayResultsList(stopsResults, `Bounds Search: ${stopsResults.length} stops found`);
+        }
+    } catch (error) {
+        console.error('Error performing bounds search:', error);
+        alert('Error performing search');
+    }
+}
+
+async function performAdvancedQuery() {
+    const queryType = document.getElementById('advancedQueryType').value;
+    const minLat = parseFloat(document.getElementById('bboxMinLat').value);
+    const maxLat = parseFloat(document.getElementById('bboxMaxLat').value);
+    const minLon = parseFloat(document.getElementById('bboxMinLon').value);
+    const maxLon = parseFloat(document.getElementById('bboxMaxLon').value);
+
+    try {
+        let endpoint;
+        let title;
+        const layer = window.queryLayer || queryLayer;
+        
+        if (queryType === 'congestion') {
+            endpoint = '/api/vehicles/congestion/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
+        } else if (queryType === 'route-analysis') {
+            const routeId = document.getElementById('routeSelect').value;
+            if (!routeId) {
+                alert('Please select a route');
+                return;
+            }
+            endpoint = '/api/routes/' + routeId + '/';
+        } else if (queryType === 'nearest-stops') {
+            const lat = parseFloat(document.getElementById('nearestLat').value);
+            const lon = parseFloat(document.getElementById('nearestLon').value);
+            const count = parseInt(document.getElementById('nearestCount').value) || 5;
+            if (isNaN(lat) || isNaN(lon)) {
+                alert('Please enter valid coordinates');
+                return;
+            }
+            endpoint = '/api/stops/nearby/?lat=' + lat + '&lon=' + lon + '&distance_km=5';
+        } else if (queryType === 'routes-bbox') {
+            // Draw rectangle for routes-bbox
+            layer.clearLayers();
+            const boundsForRect = [[minLat, minLon], [maxLat, maxLon]];
+            const rectangle = L.rectangle(boundsForRect, {
+                color: '#9b59b6',
+                fill: true,
+                fillColor: '#9b59b6',
+                fillOpacity: 0.1,
+                weight: 3,
+                opacity: 0.8,
+                dashArray: '5, 5'
+            });
+            layer.addLayer(rectangle);
+            
+            endpoint = '/api/shapes/in_bounds/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
+        } else if (queryType === 'both-bbox') {
+            // For BOTH stops and routes in bounding box - fetch stops first, add to layer, then routes
+            const layer = window.queryLayer || queryLayer;
+            layer.clearLayers();
+            
+            const stopsUrl = '/api/stops/in_bounds/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
+            const shapesUrl = '/api/shapes/in_bounds/?min_lat=' + minLat + '&max_lat=' + maxLat + '&min_lon=' + minLon + '&max_lon=' + maxLon;
+            
+            const stopsResp = await fetch(stopsUrl);
+            const stopsData = await stopsResp.json();
+            
+            // Add stops to map
+            const stopsResults = stopsData.results || [];
+            stopsResults.forEach(stop => {
+                const props = stop.properties || stop;
+                const coords = stop.geometry?.coordinates || stop.point;
+                if (coords) {
+                    const marker = L.marker([coords[1], coords[0]], {
+                        icon: L.divIcon({
+                            className: 'query-marker stop-marker',
+                            html: '<i class="fas fa-star" style="color: #9b59b6; font-size: 32px; text-shadow: -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white, 1px 1px 0 white;"></i>',
+                            iconSize: [50, 50],
+                            iconAnchor: [25, 25]
+                        })
+                    });
+                    // Enhanced popup with all stop data
+                    const popupContent = `
+                        <div class="popup-content">
+                            <strong>${props.stop_name || props.name || 'Stop'}</strong><br>
+                            <small>Stop ID: ${props.stop_id || 'N/A'}</small><br>
+                            ${props.stop_code ? `Code: ${props.stop_code}<br>` : ''}
+                            ${props.stop_type ? `Type: ${props.stop_type}<br>` : ''}
+                            ${props.stop_desc ? `Description: ${props.stop_desc}<br>` : ''}
+                            <small>(${coords[1].toFixed(4)}, ${coords[0].toFixed(4)})</small>
+                        </div>
+                    `;
+                    marker.bindPopup(popupContent);
+                    layer.addLayer(marker);
+                }
+            });
+            
+            const routesResp = await fetch(shapesUrl);
+            const routesData = await routesResp.json();
+            console.log('Advanced both-bbox - Routes data:', routesData);
+            
+            // Add routes to map
+            const routesResults = routesData.results || [];
+            console.log('Advanced both-bbox - Routes count:', routesResults.length);
             routesResults.forEach(route => {
                 const props = route.properties || route;
                 const coordinates = route.geometry?.coordinates || route.coordinates;
+                console.log('Advanced both-bbox - Route:', props.route_short_name, 'has coords:', !!coordinates);
+                if (coordinates && Array.isArray(coordinates)) {
+                    const latLngs = coordinates.map(coord => [coord[1], coord[0]]);
+                    const polyline = L.polyline(latLngs, {
+                        color: '#9b59b6',
+                        weight: 4,
+                        opacity: 0.8,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                    });
+                    // Enhanced popup with all route data
+                    const popupContent = `
+                        <div class="popup-content">
+                            <strong>${props.route_short_name || 'Route'}</strong><br>
+                            ${props.route_long_name ? `<small>${props.route_long_name}</small><br>` : ''}
+                            Route ID: ${props.route_id || 'N/A'}<br>
+                            ${props.route_type ? `Type: ${getRouteTypeName(props.route_type)}<br>` : ''}
+                            ${props.route_color ? `<small>Color: #${props.route_color}</small>` : ''}
+                        </div>
+                    `;
+                    polyline.bindPopup(popupContent);
+                    layer.addLayer(polyline);
+                    console.log('Advanced both-bbox - Added route to layer');
+                }
+            });
+            
+            // Display results in the results panel
+            console.log('Advanced both-bbox - Display results. Stops:', stopsResults.length, 'Routes:', routesResults.length);
+            displayBothResults(stopsResults, routesResults);
+            return;
+        }
+
+        const response = await fetch(endpoint);
+        const data = await response.json();
+
+        if (queryType === 'congestion') {
+            displayCongestionResults(data.results);
+        } else if (queryType === 'routes-bbox') {
+            // Add routes directly to layer (don't use displayRouteResults which clears the layer)
+            const routesResults = data.results || [];
+            routesResults.forEach(route => {
+                const props = route.properties || route;
+                const coordinates = route.geometry?.coordinates;
                 if (coordinates && Array.isArray(coordinates)) {
                     const latLngs = coordinates.map(coord => [coord[1], coord[0]]);
                     const polyline = L.polyline(latLngs, {
@@ -353,17 +571,7 @@ async function performAdvancedQuery() {
             });
             
             // Display results in the results panel
-            displayBothResults(stopsResults, routesResults);
-            return;
-        }
-
-        const response = await fetch(endpoint);
-        const data = await response.json();
-
-        if (queryType === 'congestion') {
-            displayCongestionResults(data.results);
-        } else if (queryType === 'routes-bbox') {
-            displayRouteResults(data.results || []);
+            displayResultsList(routesResults, `Advanced Query: ${routesResults.length} routes found`);
         } else {
             displayResults(data.results || [data], 'Advanced Query Results', minLat, minLon);
         }
