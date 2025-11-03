@@ -16,12 +16,11 @@ from typing import Dict, Any, Optional
 
 
 class RouteSerializer(GeoFeatureModelSerializer):
-    """
-    Serializer for Route model with GeoJSON support.
     
-    Converts Route objects to GeoJSON Feature format with geometry.
-    Used for rendering route lines on the map.
-    """
+    # Serializer for Route model with GeoJSON support.
+    # Converts Route objects to GeoJSON Feature format with geometry.
+    # Used for rendering route lines on the map.
+    
     class Meta:
         model = Route
         geo_field = 'geometry'
@@ -30,48 +29,41 @@ class RouteSerializer(GeoFeatureModelSerializer):
 
 
 class StopSerializer(serializers.ModelSerializer):
-    """
-    Serializer for Stop model - GeoJSON Feature format.
+   
+    # Serializer for Stop model with GeoJSON support.
+    # Converts Stop objects to GeoJSON Feature format with geometry.
+    # Used for rendering stop points on the map and spatial queries.
+    # Handles both regular list output and spatial query results.
     
-    Converts Stop objects to GeoJSON Feature format with:
-    - Point geometry (longitude, latitude)
-    - Stop properties (name, code, type, etc.)
-    - Optional distance field (for spatial queries)
-    - Accessibility information
-    
-    Handles both regular list output and spatial query results.
-    """
     type = serializers.SerializerMethodField()
     geometry = serializers.SerializerMethodField()
     properties = serializers.SerializerMethodField()
     distance = serializers.SerializerMethodField()
     
-    @extend_schema_field(serializers.CharField())
-    def get_type(self, obj) -> str:
+    
+    @extend_schema_field(serializers.CharField()) # for Schema generation
+    def get_type(self, obj) -> str: # Return GeoJSON Feature type
         return 'Feature'
     
-    @extend_schema_field(serializers.JSONField())
-    def get_geometry(self, obj) -> Optional[Dict[str, Any]]:
-        """Return GeoJSON geometry."""
-        if obj.location:
+    @extend_schema_field(serializers.JSONField()) # for Schema generation
+    def get_geometry(self, obj) -> Optional[Dict[str, Any]]: # Return GeoJSON geometry
+        if obj.location: # If location exists it returns a GeoJSON Point
             return {
                 'type': 'Point',
                 'coordinates': [obj.location.x, obj.location.y]
             }
         return None
     
-    @extend_schema_field(serializers.FloatField())
-    def get_distance(self, obj) -> Optional[float]:
-        """Return distance if annotated, otherwise None."""
-        if hasattr(obj, 'distance') and obj.distance:
-            # Return distance in meters
+    @extend_schema_field(serializers.FloatField()) # for Schema generation
+    def get_distance(self, obj) -> Optional[float]: # Return distance if set, otherwise None
+        if hasattr(obj, 'distance') and obj.distance: # If distance is set it returns distance in meters
+
             return obj.distance.m
         return None
-    
-    @extend_schema_field(serializers.JSONField())
-    def get_properties(self, obj) -> Dict[str, Any]:
-        """Return feature properties."""
-        props = {
+
+    @extend_schema_field(serializers.JSONField()) # for Schema generation
+    def get_properties(self, obj) -> Dict[str, Any]: # Return feature properties
+        props = { # Feature properties dictionary
             'id': obj.id,
             'stop_id': obj.stop_id,
             'stop_code': obj.stop_code,
@@ -91,14 +83,14 @@ class StopSerializer(serializers.ModelSerializer):
 
 
 class SpatialQuerySerializer(GeoFeatureModelSerializer):
-    """
-    Serializer for saved spatial queries with geometry.
     
-    Stores and retrieves spatial query definitions with:
-    - Query geometry (point, polygon, or bounding box)
-    - Query type and parameters
-    - Creator information and timestamps
-    """
+    # Serializer for SpatialQuery model with GeoJSON support
+    # Converts SpatialQuery objects to GeoJSON Feature format with geometry
+    # Stores and retrieves spatial query definitions with:
+    # Query geometry (point, polygon, or bounding box)
+    # Query type and parameters
+    # Creator information and timestamps
+
     class Meta:
         model = SpatialQuery
         geo_field = 'geometry'
@@ -107,11 +99,14 @@ class SpatialQuerySerializer(GeoFeatureModelSerializer):
 
 
 class SpatialSearchSerializer(serializers.Serializer):
-    """Serializer for spatial search request parameters."""
-    query_type = serializers.ChoiceField(
+    # Serializer for spatial search request parameters
+
+    query_type = serializers.ChoiceField( # Type of spatial query
         choices=['radius', 'bbox', 'polygon'],
         help_text='Type of spatial query'
     )
+
+    # Parameters for different query types
     latitude = serializers.FloatField(required=False)
     longitude = serializers.FloatField(required=False)
     radius_km = serializers.FloatField(required=False, default=1.0)
@@ -122,9 +117,11 @@ class SpatialSearchSerializer(serializers.Serializer):
     polygon = serializers.JSONField(required=False)
     include_nearby = serializers.BooleanField(default=True)
     
+    # Validate required fields based on query type
     def validate(self, data):
-        query_type = data.get('query_type')
+        query_type = data.get('query_type') # Get query type
         
+        # Validate required fields for each query type
         if query_type == 'radius':
             if not data.get('latitude') or not data.get('longitude'):
                 raise serializers.ValidationError("Latitude and longitude required")
@@ -138,30 +135,32 @@ class SpatialSearchSerializer(serializers.Serializer):
         
         return data
 
-
+# Serializer for route shapes as GeoJSON LineStrings.
+#This serializer converts Shape objects to GeoJSON Feature format with:
+#LineString geometry (sequence of lat/lon coordinates)
+#Associated route information
+#Route type and short name for categorization
+# Used for rendering route paths on the map
 class ShapeSerializer(serializers.Serializer):
-    """
-    Serializer for route shapes as GeoJSON LineStrings.
     
-    Converts Shape objects to GeoJSON Feature format with:
-    - LineString geometry (sequence of lat/lon coordinates)
-    - Associated route information
-    - Route type and short name for categorization
+    # Serializer for route shapes as GeoJSON LineStrings.
+    # This serializer converts Shape objects to GeoJSON Feature format with:
+    # LineString geometry (sequence of lat/lon coordinates)
+    # Associated route information
+    # Route type and short name for categorization
+    # Used for rendering route paths on the map
+
+    type = serializers.SerializerMethodField() # Always 'Feature'
+    geometry = serializers.SerializerMethodField() # GeoJSON LineString geometry
+    properties = serializers.SerializerMethodField() # Feature properties including route info
     
-    Used for rendering route paths on the map.
-    """
-    type = serializers.SerializerMethodField()
-    geometry = serializers.SerializerMethodField()
-    properties = serializers.SerializerMethodField()
-    
-    @extend_schema_field(serializers.CharField())
-    def get_type(self, obj) -> str:
+    @extend_schema_field(serializers.CharField()) # for Schema generation
+    def get_type(self, obj) -> str: # Return GeoJSON Feature type
         return 'Feature'
     
-    @extend_schema_field(serializers.JSONField())
-    def get_geometry(self, obj) -> Optional[Dict[str, Any]]:
-        """Return GeoJSON LineString geometry."""
-        if obj.geometry and len(obj.geometry.coords) > 0:
+    @extend_schema_field(serializers.JSONField()) # for Schema generation
+    def get_geometry(self, obj) -> Optional[Dict[str, Any]]: # Return GeoJSON geometry
+        if obj.geometry and len(obj.geometry.coords) > 0: # If geometry exists it returns a GeoJSON LineString
             coords = list(obj.geometry.coords)
             return {
                 'type': 'LineString',
@@ -169,9 +168,8 @@ class ShapeSerializer(serializers.Serializer):
             }
         return None
     
-    @extend_schema_field(serializers.JSONField())
-    def get_properties(self, obj) -> Dict[str, Any]:
-        """Return feature properties."""
+    @extend_schema_field(serializers.JSONField()) # for Schema generation
+    def get_properties(self, obj) -> Dict[str, Any]: # Return feature properties.
         # Get route info from first trip that uses this shape
         route = None
         trip = obj.trip_set.first() if hasattr(obj, 'trip_set') else None
@@ -192,16 +190,14 @@ class ShapeSerializer(serializers.Serializer):
 
 
 class TripScheduleSerializer(serializers.Serializer):
-    """
-    Serializer for trip schedules at a specific stop.
     
-    Provides schedule information for trips passing through a stop:
-    - Route and trip identifiers
-    - Arrival and departure times
-    - Stop sequence (order within route)
-    
-    Used for displaying transit schedules in the UI.
-    """
+    # Serializer for trip schedules at a specific stop
+    # Provides schedule information for trips passing through a stop:
+    # Route and trip identifiers
+    # Arrival and departure times
+    # Stop sequence that order within route
+    # Used for displaying transit schedules in the UI 
+
     trip_id = serializers.CharField()
     route_id = serializers.CharField()
     route_short_name = serializers.CharField()

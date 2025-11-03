@@ -1,5 +1,6 @@
-/* Transport API Stylesheet */
+/* Transport API Stylesheet with Bootstrap */
 
+/* Color Variables */
 :root {
     --primary-color: #667eea;
     --primary-dark: #5568d3;
@@ -100,7 +101,7 @@ html, body {
     padding-bottom: 10px;
 }
 
-/* Forms */
+/* Forms for queries */
 .form-label {
     font-weight: 500;
     color: #555;
@@ -164,7 +165,7 @@ html, body {
     font-size: 0.85rem;
 }
 
-/* Tabs */
+/* Tabs for queries */
 .nav-tabs {
     border-bottom: 2px solid #e9ecef;
 }
@@ -188,7 +189,7 @@ html, body {
     border-bottom-color: var(--primary-color);
 }
 
-/* Results Panel */
+/* Results Panel for queries */
 .results-panel {
     max-height: 300px;
     overflow-y: auto;
@@ -248,6 +249,7 @@ html, body {
 }
 
 /* Badges */
+/* For real time updates not implemented yet */
 .badge {
     border-radius: 20px;
     padding: 4px 10px;
@@ -354,7 +356,7 @@ html, body {
     }
 }
 
-/* Form Checks */
+/* Form Checks Boxes */
 .form-check {
     padding: 10px 0;
     margin-left: 30px;

@@ -3,12 +3,11 @@ Transport mapping models using GeoDjango for spatial queries.
 Models for vehicles, routes, and stops from National Transport API.
 """
 from django.contrib.gis.db import models
-
+from django.contrib.gis.measure import D
 
 class Agency(models.Model):
-    """
-    Transit agency/operator information from GTFS.
-    """
+    
+    #Transit agency/operator information from GTFS.
     agency_id = models.CharField(max_length=100, unique=True)
     agency_name = models.CharField(max_length=255)
     agency_url = models.URLField(blank=True)
@@ -28,9 +27,9 @@ class Agency(models.Model):
 
 
 class Calendar(models.Model):
-    """
-    Service calendar from GTFS - defines which days service runs.
-    """
+    
+    #Service calendar from GTFS - defines which days service runs.
+
     service_id = models.CharField(max_length=100, unique=True)
     monday = models.BooleanField(default=False)
     tuesday = models.BooleanField(default=False)
@@ -53,9 +52,8 @@ class Calendar(models.Model):
 
 
 class Shape(models.Model):
-    """
-    Shape geometry for routes from GTFS - defines the actual path of a route.
-    """
+
+    # Shape geometry for routes from GTFS - defines the actual path of a route.
     shape_id = models.CharField(max_length=100)
     geometry = models.LineStringField()
     sequence = models.IntegerField()
@@ -74,15 +72,15 @@ class Shape(models.Model):
 
 
 class Trip(models.Model):
-    """
-    Individual trip/journey from GTFS - links a route to a service pattern.
-    """
-    # Use string reference to avoid NameError if Route is defined later in the file
-    route = models.ForeignKey('Route', on_delete=models.CASCADE, related_name='trips')
+   
+    # Individual trip/journey from GTFS - links a route to a service pattern.
+ 
+   
+    route = models.ForeignKey('Route', on_delete=models.CASCADE, related_name='trips') # ForeignKey to Route model
     service_id = models.CharField(max_length=100)
     trip_id = models.CharField(max_length=100, unique=True)
     trip_headsign = models.CharField(max_length=255, blank=True)
-    direction_id = models.IntegerField(choices=[(0, 'One direction'), (1, 'Opposite direction')], default=0)
+    direction_id = models.IntegerField(choices=[(0, 'One direction'), (1, 'Opposite direction')], default=0) 
     shape_id = models.CharField(max_length=100, blank=True)
     wheelchair_accessible = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -101,16 +99,15 @@ class Trip(models.Model):
 
 
 class StopTime(models.Model):
-    """
-    Stop times for each trip from GTFS - when a trip arrives/departs at each stop.
-    """
-    trip = models.ForeignKey(Trip, on_delete=models.CASCADE, related_name='stop_times')
-    stop = models.ForeignKey('Stop', on_delete=models.CASCADE, related_name='stop_times')
+    
+    # Stop times for each trip from GTFS - when a trip arrives/departs at each stop.
+    trip = models.ForeignKey(Trip, on_delete=models.CASCADE, related_name='stop_times') # ForeignKey to Trip model
+    stop = models.ForeignKey('Stop', on_delete=models.CASCADE, related_name='stop_times') # ForeignKey to Stop model
     stop_sequence = models.IntegerField()
     arrival_time = models.TimeField(null=True, blank=True)
     departure_time = models.TimeField(null=True, blank=True)
     stop_headsign = models.CharField(max_length=255, blank=True)
-    pickup_type = models.IntegerField(
+    pickup_type = models.IntegerField( # Type of pickup
         choices=[
             (0, 'Regular'),
             (1, 'No pickup'),
@@ -120,7 +117,7 @@ class StopTime(models.Model):
         default=0
     )
     drop_off_type = models.IntegerField(
-        choices=[
+        choices=[ # Type of drop-off
             (0, 'Regular'),
             (1, 'No drop-off'),
             (2, 'Phone agency'),
@@ -128,15 +125,15 @@ class StopTime(models.Model):
         ],
         default=0
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True) # Timestamp when record created
+    updated_at = models.DateTimeField(auto_now=True) # Timestamp when record last updated
 
     class Meta:
         ordering = ['trip', 'stop_sequence']
         unique_together = ('trip', 'stop_sequence')
         indexes = [
-            models.Index(fields=['trip']),
-            models.Index(fields=['stop']),
+            models.Index(fields=['trip']),  # Index on trip
+            models.Index(fields=['stop']),  # Index on stop
         ]
 
     def __str__(self):
@@ -144,16 +141,15 @@ class StopTime(models.Model):
 
 
 class Route(models.Model):
-    """
-    Represents a public transport route.
-    Stores route information and spatial geometry.
-    """
+
+    #Represents a public transport route.
+    #Stores route information and spatial geometry.
     route_id = models.CharField(max_length=100, unique=True)
     route_short_name = models.CharField(max_length=50)
     route_long_name = models.CharField(max_length=255)
     route_type = models.CharField(
         max_length=50,
-        choices=[
+        choices=[ # Type of route
             ('0', 'Tram'),
             ('1', 'Subway'),
             ('2', 'Rail'),
@@ -178,10 +174,9 @@ class Route(models.Model):
 
 
 class Stop(models.Model):
-    """
-    Represents a public transport stop/station.
-    Stores stop location and metadata.
-    """
+
+    # Represents a public transport stop/station.
+    # Stores stop location and metadata.
     stop_id = models.CharField(max_length=100, unique=True)
     stop_code = models.CharField(max_length=50, blank=True)
     stop_name = models.CharField(max_length=255)
@@ -189,7 +184,7 @@ class Stop(models.Model):
     location = models.PointField()
     stop_type = models.CharField(
         max_length=50,
-        choices=[
+        choices=[ # Type of stop
             ('station', 'Station'),
             ('stop', 'Stop'),
             ('terminal', 'Terminal'),
@@ -210,31 +205,29 @@ class Stop(models.Model):
     def __str__(self):
         return self.stop_name
 
-    def get_nearby_stops(self, distance_km=1):
-        """Spatial query: Find stops within a certain distance."""
-        from django.contrib.gis.measure import D
-        return Stop.objects.filter(
-            location__distance_lte=(self.location, D(km=distance_km))
-        ).exclude(id=self.id).order_by('location__distance_from', 'stop_name')
+    # Spatial query: Find stops within a certain distance.
+    def get_nearby_stops(self, distance_km=1): 
+        return Stop.objects.filter( # Find stops within the specified distance
+            location__distance_lte=(self.location, D(km=distance_km)) # Distance lookup
+        ).exclude(id=self.id).order_by('location__distance_from', 'stop_name') #
 
 
 class SpatialQuery(models.Model):
-    """
-    Saved spatial queries for analysis and reporting.
-    """
+    
+    # Saved spatial queries for analysis and reporting.
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     query_type = models.CharField(
         max_length=50,
-        choices=[
+        choices=[ # Type of query
             ('radius', 'Radius Search'),
             ('bbox', 'Bounding Box'),
             ('polygon', 'Polygon'),
             ('corridor', 'Corridor'),
         ]
     )
-    geometry = models.GeometryField()
-    parameters = models.JSONField(default=dict, blank=True)
+    geometry = models.GeometryField() # Geometry defining the query area
+    parameters = models.JSONField(default=dict, blank=True) # Additional query parameters
     created_by = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -22,55 +22,52 @@ from transport_api.models import Trip, StopTime, Shape
 
 
 class MapView(TemplateView):
-    """
-    Main web map view with Leaflet integration.
-    
-    Renders the interactive map interface with:
-    - Leaflet.js for mapping
-    - Base map tiles (OpenStreetMap, etc.)
-    - Layer controls for stops, routes, shapes
-    - Spatial query interface (radius, bounds, k-nearest, on-route)
-    """
+ 
+    # Main web map view with Leaflet integration.
+    # Renders the interactive map interface with:
+    # Leaflet.js for mapping
+    # Base map tiles like OpenStreetMap 
+    # Layer controls for stops, routes, shapes
+    # Spatial query interface (radius, bounds, k-nearest, on-route)
+ 
     template_name = 'map.html'
     
-    def get_context_data(self, **kwargs):
+    def get_context_data(self, **kwargs): # Get context data for the map template.
         context = super().get_context_data(**kwargs)
         context['api_base_url'] = '/api'
         return context
 
 
 class BlankMapView(TemplateView):
-    """
-    Blank map view with no data loaded.
     
-    Useful for development and testing:
-    - Clean starting point without pre-loaded data
-    - Faster initial page load
-    - For debugging and performance testing
-    """
+    # Blank map view with no data loaded.
+    # Useful for development and testing:
+    # Clean starting point without pre-loaded data
+    # Faster initial page load
+    # For debugging and performance testing
+    
     template_name = 'blank_map.html'
     
-    def get_context_data(self, **kwargs):
+    def get_context_data(self, **kwargs): # Get context data for the blank map template.
         context = super().get_context_data(**kwargs)
         return context
 
 class StopViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet for public transport stops with advanced spatial queries.
-    
-    Provides endpoints:
-    - List all stops with search and filtering
-    - Nearby stops - find within distance radius
-    - In bounds - find within bounding box
-    - K-nearest - find k closest stops
-    - On route - get all stops on a specific route
-    - Schedules - get trip schedule for a stop
-    
-    All spatial queries use PostGIS for efficient geographic lookups.
-    """
+
+    # ViewSet for public transport stops with advanced spatial queries.
+    # Provides endpoints:
+    # List all stops with search and filtering
+    # Nearby stops - find within distance radius
+    # In bounds - find within bounding box
+    # K-nearest - find k closest stops
+    # On route - get all stops on a specific route
+    # Schedules - get trip schedule for a stop
+    # All spatial queries use PostGIS for efficient geographic lookups.
+
+    # Standard CRUD (Create, Read, Update, Delete) operations for Stop model
     queryset = Stop.objects.all()
     serializer_class = StopSerializer
-    filter_backends = [SearchFilter, OrderingFilter, DjangoFilterBackend]
+    filter_backends = [SearchFilter, OrderingFilter, DjangoFilterBackend] # Enable search, ordering, filtering
     search_fields = ['stop_name', 'stop_code', 'stop_id']
     ordering_fields = ['stop_name', 'created_at']
     ordering = ['stop_name']
@@ -82,28 +79,29 @@ class StopViewSet(viewsets.ModelViewSet):
             OpenApiParameter('lon', OpenApiTypes.FLOAT, description='Longitude coordinate'),
             OpenApiParameter('distance_km', OpenApiTypes.FLOAT, description='Search radius in kilometers (default: 1.0)'),
         ]
-    )
-    @action(detail=False, methods=['get'])
-    def nearby(self, request):
-        """Find stops near a point. Params: lat, lon, distance_km"""
+    ) # schema for nearby action
+    @action(detail=False, methods=['get']) # find nearby stops using GET
+    def nearby(self, request): # Find stops near a point
         lat = request.query_params.get('lat')
         lon = request.query_params.get('lon')
-        distance_km = float(request.query_params.get('distance_km', 1.0))
+        distance_km = float(request.query_params.get('distance_km', 1.0)) 
 
+        # Validate input
         if not lat or not lon:
             return Response({'error': 'lat and lon required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
+        try: # Convert lat/lon to float and create Point
             lat, lon = float(lat), float(lon)
             point = Point(lon, lat)
             stops = Stop.objects.filter(
                 location__distance_lte=(point, D(km=distance_km))
-            ).annotate(
+            ).annotate(# Annotate just adds the computed distance to each result without changing the actual model database
                 distance=Distance('location', point)
             ).order_by('distance')
             
-            serializer = self.get_serializer(stops, many=True)
-            return Response({
+            
+            serializer = self.get_serializer(stops, many=True) # Serialize results
+            return Response({ # Return response with count and results
                 'count': stops.count(),
                 'center': {'lat': lat, 'lon': lon},
                 'radius_km': distance_km,
@@ -120,19 +118,21 @@ class StopViewSet(viewsets.ModelViewSet):
             OpenApiParameter('min_lon', OpenApiTypes.FLOAT, description='Minimum longitude'),
             OpenApiParameter('max_lon', OpenApiTypes.FLOAT, description='Maximum longitude'),
         ]
-    )
+    )# schema for in_bounds action
     @action(detail=False, methods=['get'])
-    def in_bounds(self, request):
-        """Find stops within a bounding box. Params: min_lat, max_lat, min_lon, max_lon"""
+    def in_bounds(self, request): # Find stops within a bounding box
+
+        # Boundary box coordinates
         min_lat = request.query_params.get('min_lat')
         max_lat = request.query_params.get('max_lat')
         min_lon = request.query_params.get('min_lon')
         max_lon = request.query_params.get('max_lon')
 
+        # Validate input
         if not all([min_lat, max_lat, min_lon, max_lon]):
             return Response({'error': 'All bounds parameters required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
+        try: # Create bounding box polygon and query stops within it
             min_lat, max_lat = float(min_lat), float(max_lat)
             min_lon, max_lon = float(min_lon), float(max_lon)
             
@@ -143,8 +143,9 @@ class StopViewSet(viewsets.ModelViewSet):
                 (min_lon, max_lat),
                 (min_lon, min_lat),
             ])
+            # Query stops within the bounding box
             stops = Stop.objects.filter(location__within=bounds)
-            serializer = self.get_serializer(stops, many=True)
+            serializer = self.get_serializer(stops, many=True) # Serialize results
             return Response({
                 'count': stops.count(),
                 'bounds': {'min_lat': min_lat, 'max_lat': max_lat, 'min_lon': min_lon, 'max_lon': max_lon},
@@ -160,27 +161,26 @@ class StopViewSet(viewsets.ModelViewSet):
             OpenApiParameter('lon', OpenApiTypes.FLOAT, description='Longitude coordinate'),
             OpenApiParameter('k', OpenApiTypes.INT, description='Number of nearest stops to return (default: 5)'),
         ]
-    )
+    )# schema for k_nearest action
     @action(detail=False, methods=['get'])
-    def k_nearest(self, request):
-        """Find k nearest stops to a point. Params: lat, lon, k"""
+    def k_nearest(self, request): # Find k nearest stops to a point
         lat = request.query_params.get('lat')
         lon = request.query_params.get('lon')
 
+        # Validate input
         if not lat or not lon:
             return Response({'error': 'lat and lon required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
+        try: # Convert lat/lon to float and create Point
             lat, lon = float(lat), float(lon)
             k = int(request.query_params.get('k', 5))
-            # Create point with SRID 4326 (WGS84)
-            point = Point(lon, lat, srid=4326)
-            stops = Stop.objects.annotate(
+            point = Point(lon, lat, srid=4326) # Create point with SRID 4326 (WGS84) to compute distances for django
+            stops = Stop.objects.annotate( 
                 distance=Distance('location', point)
             ).order_by('distance')[:k]
             
             serializer = self.get_serializer(stops, many=True)
-            return Response({
+            return Response({ # Return response with count and results
                 'count': len(serializer.data),
                 'center': {'lat': lat, 'lon': lon},
                 'k': k,
@@ -188,32 +188,32 @@ class StopViewSet(viewsets.ModelViewSet):
             })
         except Exception as e:
             import traceback
-            traceback.print_exc()
+            traceback.print_exc() # Print stack trace for debugging
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get']) # Get nearby stops for a specific stop
     def nearby_stops(self, request, pk=None):
-        """Get stops near a specific stop."""
-        stop = self.get_object()
-        distance_km = float(request.query_params.get('distance_km', 1.0))
+        stop = self.get_object() # Get the stop object by primary key
+        distance_km = float(request.query_params.get('distance_km', 1.0)) # Default 1 km distance
         
-        nearby = Stop.objects.filter(
-            location__distance_lte=(stop.location, D(km=distance_km))
+        nearby = Stop.objects.filter( # Find stops within the specified distance
+            location__distance_lte=(stop.location, D(km=distance_km)) # Find stops within the specified distance
         ).exclude(id=stop.id).annotate(
             distance=Distance('location', stop.location)
         ).order_by('distance')
         
-        serializer = self.get_serializer(nearby, many=True)
-        return Response({
+        serializer = self.get_serializer(nearby, many=True) # Serialize results
+        return Response({ # Return response with center stop and nearby results
             'center_stop': StopSerializer(stop).data,
             'nearby_count': nearby.count(),
             'distance_km': distance_km,
             'results': serializer.data
         })
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get']) # Get trip schedules for a specific stop
     def schedules(self, request, pk=None):
-        """Get trip schedules for a specific stop."""
+        
+        # Get trip schedules for a specific stop.
         stop = self.get_object()
         
         # Get all stop times for this stop, ordered by arrival time
@@ -221,8 +221,8 @@ class StopViewSet(viewsets.ModelViewSet):
             'trip', 'trip__route'
         ).order_by('arrival_time')
         
-        schedules = []
-        for st in stop_times:
+        schedules = [] # Build schedule list
+        for st in stop_times: # Iterate through stop times and build schedule entries
             schedules.append({
                 'trip_id': st.trip.trip_id,
                 'route_id': st.trip.route.route_id,
@@ -234,7 +234,7 @@ class StopViewSet(viewsets.ModelViewSet):
                 'stop_sequence': st.stop_sequence,
             })
         
-        return Response({
+        return Response({ # Return response with stop info and schedules
             'stop_id': stop.stop_id,
             'stop_name': stop.stop_name,
             'schedule_count': len(schedules),
@@ -246,12 +246,14 @@ class StopViewSet(viewsets.ModelViewSet):
         parameters=[
             OpenApiParameter('route_id', OpenApiTypes.STR, description='The route ID to get stops for'),
         ]
-    )
-    @action(detail=False, methods=['get'])
+    ) # schema for on_route action
+    @action(detail=False, methods=['get']) # Find all stops on a specific route
     def on_route(self, request):
-        """Find all stops on a specific route. Params: route_id"""
+        
+        # Find all stops on a specific route. Params: route_id
         route_id = request.query_params.get('route_id')
         
+        # Validate input
         if not route_id:
             return Response({'error': 'route_id required'}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -265,7 +267,7 @@ class StopViewSet(viewsets.ModelViewSet):
             stops_data = []
             seen_stops = set()
             
-            for st in stop_times:
+            for st in stop_times: # Iterate through stop times and collect unique stops
                 if st.stop.id not in seen_stops:
                     seen_stops.add(st.stop.id)
                     stops_data.append({
@@ -283,8 +285,8 @@ class StopViewSet(viewsets.ModelViewSet):
             
             # Get route information
             route = Route.objects.get(route_id=route_id)
-            
-            return Response({
+
+            return Response({ # Return response with route info and stops
                 'route_id': route.route_id,
                 'route_short_name': route.route_short_name,
                 'route_long_name': route.route_long_name,
@@ -292,6 +294,7 @@ class StopViewSet(viewsets.ModelViewSet):
                 'stop_count': len(stops_data),
                 'stops': stops_data
             })
+        # Handle other potential errors
         except Route.DoesNotExist:
             return Response({'error': f'Route {route_id} not found'}, status=status.HTTP_404_NOT_FOUND)
         except (ValueError, TypeError) as e:
@@ -299,61 +302,64 @@ class StopViewSet(viewsets.ModelViewSet):
 
 
 class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    ViewSet for route shapes as GeoJSON LineStrings.
-    
-    Read-only endpoints providing:
-    - List all route shapes with geometry
-    - Find shapes near a point
-    - Find shapes within bounding box
-    - Get trips using a specific shape
-    - Get detailed trip information with schedules
-    
-    Shapes represent the actual path that routes follow.
-    """
-    queryset = Shape.objects.all()
-    serializer_class = ShapeSerializer
+
+    #ViewSet for route shapes as GeoJSON LineStrings.
+    #Read-only endpoints providing:
+    #List all route shapes with geometry
+    #Find shapes near a point
+    #Find shapes within bounding box
+    #Get trips using a specific shape
+    #Get detailed trip information with schedules
+    #Shapes represent the actual path that routes follow.
+
+
+  
+    queryset = Shape.objects.all() # Query all Shape objects
+    serializer_class = ShapeSerializer # Use ShapeSerializer for GeoJSON format
     pagination_class = None  # No pagination for shapes
     
-    def list(self, request, *args, **kwargs):
-        """Return all shapes as GeoJSON Features."""
+    def list(self, request, *args, **kwargs): # Return all shapes as GeoJSON Features.
+        
         # Get limit from query params
         limit = request.query_params.get('limit', None)
-        offset = int(request.query_params.get('offset', 0))
-        
+        offset = int(request.query_params.get('offset', 0)) # The offset for pagination
+
+        # Get all shapes
         all_shapes = self.get_queryset()
         
-        if limit:
-            limit = int(limit)
-            shapes = all_shapes[offset:offset + limit]
-        else:
-            shapes = all_shapes[offset:]
-        
-        # Preload all trips with routes to avoid N+1 queries
-        shape_ids = [s.shape_id for s in shapes]
-        trips_by_shape = {}
-        for trip in Trip.objects.filter(shape_id__in=shape_ids).select_related('route').only(
-            'shape_id', 'route__route_id', 'route__route_short_name', 'route__route_long_name', 'route__route_type'
-        ):
-            if trip.shape_id not in trips_by_shape:
+        if limit: # If limit is specified, slice the queryset
+            limit = int(limit) # Convert limit to integer
+            shapes = all_shapes[offset:offset + limit] # Slice queryset for pagination by offset and limit
+        else: # Get shapes from offset to end
+            shapes = all_shapes[offset:] 
+
+        # Preloading all trips with routes to avoid having more queries later
+        shape_ids = [s.shape_id for s in shapes] # List of shape IDs in current page
+        trips_by_shape = {} # Map shape_id to Trip object
+        for trip in Trip.objects.filter(shape_id__in=shape_ids).select_related('route').only( 
+            'shape_id', 'route__route_id', 
+            'route__route_short_name', 
+            'route__route_long_name', 
+            'route__route_type'): # Get route info from preloaded trips
+            
+            if trip.shape_id not in trips_by_shape: # If shape_id not already mapped, add it
                 trips_by_shape[trip.shape_id] = trip
         
-        features = []
+        features = [] # Build GeoJSON features for each shape
         
-        for shape in shapes:
-            if shape.geometry and len(shape.geometry.coords) > 0:
-                # Get route info from preloaded trips
-                trip = trips_by_shape.get(shape.shape_id)
-                route = trip.route if trip else None
+        for shape in shapes: # Iterate through shapes and build GeoJSON features
+            if shape.geometry and len(shape.geometry.coords) > 0: # Ensure shape has geometry
+                trip = trips_by_shape.get(shape.shape_id) # Get route info from preloaded trips
+                route = trip.route if trip else None # Get route from trip if available
                 
-                coords = list(shape.geometry.coords)
-                feature = {
+                coords = list(shape.geometry.coords) # Get coordinates of the shape
+                feature = { # Build GeoJSON feature
                     'type': 'Feature',
                     'geometry': {
                         'type': 'LineString',
                         'coordinates': coords
                     },
-                    'properties': {
+                    'properties': { # Properties including shape and route info
                         'shape_id': shape.shape_id,
                         'route_id': route.route_id if route else None,
                         'route_short_name': route.route_short_name if route else None,
@@ -361,29 +367,29 @@ class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
                         'route_type': route.route_type if route else None,
                     }
                 }
-                features.append(feature)
+                features.append(feature) # Add feature to results
         
-        return Response({
+        return Response({ # Return response with count, offset, limit, and features
             'count': all_shapes.count(),
             'offset': offset,
             'limit': limit,
             'results': features
         })
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get']) # Get trips for a specific shape
     def trips(self, request):
-        """Get trips for a specific shape. Params: shape_id"""
-        shape_id = request.query_params.get('shape_id')
+        shape_id = request.query_params.get('shape_id') # Get shape_id from query params
         
-        if not shape_id:
+        # Validate input
+        if not shape_id: # If shape_id not provided, return error
             return Response({'error': 'shape_id required'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Get all unique routes that use this shape
+        # Get all trips for this shape with related route info
         trips = Trip.objects.filter(shape_id=shape_id).select_related('route').values_list(
             'route_id', 'route__route_short_name', 'route__route_long_name', 'route__route_type'
-        )
+        ) 
         
-        # Deduplicate in Python
+        # Build unique list of routes for this shape
         seen = set()
         data = []
         for route_id, route_short_name, route_long_name, route_type in trips:
@@ -400,12 +406,11 @@ class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
         
         return Response(data)
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get']) # Get detailed trip info for a specific shape
     def trip_details(self, request):
-        """Get detailed trips with services for a specific shape. Params: shape_id"""
-        shape_id = request.query_params.get('shape_id')
+        shape_id = request.query_params.get('shape_id') # Get shape_id from query params
         
-        if not shape_id:
+        if not shape_id: # Validate input
             return Response({'error': 'shape_id required'}, status=status.HTTP_400_BAD_REQUEST)
         
         # Get all trips for this shape with full details including service
@@ -427,17 +432,16 @@ class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
         
         return Response(data)
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get']) # Find shapes near a point
     def nearby(self, request):
-        """Find shapes near a point. Params: lat, lon, distance_km"""
-        lat = request.query_params.get('lat')
-        lon = request.query_params.get('lon')
-        distance_km = float(request.query_params.get('distance_km', 2.0))
+        lat = request.query_params.get('lat') # Get latitude from query params
+        lon = request.query_params.get('lon') # Get longitude from query params
+        distance_km = float(request.query_params.get('distance_km', 2.0)) # Get distance with default 2 km
 
-        if not lat or not lon:
+        if not lat or not lon: # Validate input
             return Response({'error': 'lat and lon required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
+        try: # Convert lat/lon to float and create Point
             lat, lon = float(lat), float(lon)
             point = Point(lon, lat)
             shapes = Shape.objects.filter(
@@ -448,15 +452,15 @@ class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
             
             # Preload route info for all shapes
             shape_ids = [s.shape_id for s in shapes]
-            trips_by_shape = {}
+            trips_by_shape = {} # Map shape_id to Trip object
             for trip in Trip.objects.filter(shape_id__in=shape_ids).select_related('route').only(
                 'shape_id', 'route__route_id', 'route__route_short_name', 'route__route_long_name', 'route__route_type'
-            ):
-                if trip.shape_id not in trips_by_shape:
+            ): # Get route info from preloaded trips
+                if trip.shape_id not in trips_by_shape: # If shape_id not already mapped, add it
                     trips_by_shape[trip.shape_id] = trip
             
             features = []
-            for shape in shapes:
+            for shape in shapes: # Iterate through shapes and build GeoJSON features
                 if shape.geometry and len(shape.geometry.coords) > 0:
                     trip = trips_by_shape.get(shape.shape_id)
                     route = trip.route if trip else None
@@ -488,8 +492,10 @@ class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['get'])
-    def in_bounds(self, request):
-        """Find shapes within a bounding box. Params: min_lat, max_lat, min_lon, max_lon"""
+    def in_bounds(self, request): # Find shapes within a bounding box
+
+        # Has the same logic as above
+
         min_lat = request.query_params.get('min_lat')
         max_lat = request.query_params.get('max_lat')
         min_lon = request.query_params.get('min_lon')
@@ -554,20 +560,19 @@ class ShapeViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class RouteViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet for transit routes with spatial geometry.
-    
-    Provides endpoints:
-    - List all routes with filtering by type and operator
-    - Get route details with geometry
-    - Search routes by name
-    
-    Routes include:
-    - Route ID, short name, long name
-    - Route type (bus, rail, tram, ferry)
-    - Operator/agency information
-    - Route geometry (LineString of route path)
-    """
+ 
+    #ViewSet for transit routes with spatial geometry.
+    #Provides endpoints:
+    # List all routes with filtering by type and operator
+    # Get route details with geometry
+    # Search routes by name
+    # Routes include:
+    # Route ID, short name, long name
+    # Route type (bus, rail, tram, ferry)
+    # Operator/agency information
+    # Route geometry (LineString of route path)
+   
+   # Standard CRUD operations for Route model
     queryset = Route.objects.all()
     serializer_class = RouteSerializer
     filter_backends = [SearchFilter, OrderingFilter, DjangoFilterBackend]
@@ -578,16 +583,16 @@ class RouteViewSet(viewsets.ModelViewSet):
 
 
 class SpatialQueryViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet for managing saved spatial queries.
-    
-    Allows users to:
-    - Save spatial query definitions
-    - Name and describe queries
-    - Store query geometry (point, polygon, bounds)
-    - Track query parameters and results
-    - Organize queries with timestamps
-    """
+  
+    # ViewSet for managing saved spatial queries.
+    # Allows users to:
+    # Save spatial query definitions
+    # Name and describe queries
+    # Store query geometry (point, polygon, bounds)
+    # Track query parameters and results
+    # Organize queries with timestamps
+
+    # Standard CRUD operations for SpatialQuery model
     queryset = SpatialQuery.objects.all()
     serializer_class = SpatialQuerySerializer
     filter_backends = [SearchFilter, OrderingFilter, DjangoFilterBackend]

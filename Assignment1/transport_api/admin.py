@@ -1,7 +1,7 @@
 from django.contrib import admin
 from transport_api.models import Stop, Route, Agency, Calendar, Trip, StopTime, Shape, SpatialQuery
 
-
+# Registering models with the admin site for management
 @admin.register(Stop)
 class StopAdmin(admin.ModelAdmin):
     list_display = ('stop_id', 'stop_name', 'stop_code', 'stop_type')

@@ -8,38 +8,43 @@ from pathlib import Path
 from typing import List, Dict, Generator
 from django.contrib.gis.geos import Point
 
-
+# Define GTFSParser class
 class GTFSParser:
-    """Parser for GTFS static feed files."""
+    # Parser for GTFS static files.
     
     def __init__(self, gtfs_folder_path: str):
-        """Initialize parser with path to GTFS folder."""
+        # Initialise parser with path to GTFS folder.
         self.gtfs_path = Path(gtfs_folder_path)
     
-    def parse_stops(self) -> Generator[Dict, None, None]:
+    def parse_stops(self) -> Generator[Dict, None, None]: # Add stops to generator to create a dictionary
         """
         Parse stops.txt and yield stop dictionaries.
         
         Yields:
-            Dict with keys: stop_id, stop_code, stop_name, stop_desc, 
-                           stop_lat, stop_lon, location_type, parent_station
+        Dict with keys: stop_id, stop_code, stop_name, stop_desc, stop_lat, stop_lon, location_type, parent_station
         """
+
+        # Define file path to stops.txt
         stops_file = self.gtfs_path / 'stops.txt'
         
+        # Check if file exists
         if not stops_file.exists():
             raise FileNotFoundError(f"stops.txt not found at {stops_file}")
         
-        with open(stops_file, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                try:
+      
+        with open(stops_file, 'r', encoding='utf-8') as f: # With open stops.txt file
+            reader = csv.DictReader(f) # Read CSV as dictionary
+            for row in reader: # For each row in the CSV
+                try: # Try to parse the row
                     # Skip rows with missing coordinates
-                    lat = float(row.get('stop_lat', 0))
-                    lon = float(row.get('stop_lon', 0))
+                    lat = float(row.get('stop_lat', 0)) # Get latitude
+                    lon = float(row.get('stop_lon', 0)) # Get longitude
                     
+                    # Skip invalid coordinates
                     if lat == 0 or lon == 0:
                         continue
                     
+                    # Yield stop dictionary
                     yield {
                         'stop_id': row.get('stop_id'),
                         'stop_code': row.get('stop_code', ''),
@@ -52,7 +57,8 @@ class GTFSParser:
                     }
                 except (ValueError, KeyError) as e:
                     continue
-    
+
+    # Similar parsing functions for routes, trips, agencies, calendars, and shapes
     def parse_routes(self) -> Generator[Dict, None, None]:
         """
         Parse routes.txt and yield route dictionaries.

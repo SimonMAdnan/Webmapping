@@ -45,6 +45,8 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_filters',
     'drf_spectacular',
+
+    # My API app
     'transport_api',
 ]
 
@@ -140,11 +142,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # REST Framework configuration
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
+    # Setting a high page size to return more results in the spatial queries
     'PAGE_SIZE': 10000,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
-# drf-spectacular configuration
+# drf-spectacular/schema configuration
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Transport API',
     'DESCRIPTION': 'API for national transport network with spatial queries',
