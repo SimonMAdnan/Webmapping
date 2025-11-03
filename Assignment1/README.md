@@ -4,17 +4,17 @@ A Django REST Framework application for visualizing and querying public transpor
 
 ## Features
 
-- 🗺️ **Interactive Map** - Leaflet-based web map for visualizing transport networks
-- 📍 **Stop Management** - Browse and search public transport stops
-- 🚌 **Route Tracking** - View bus routes and route shapes
-- 🔍 **Spatial Queries**:
+- **Interactive Map** - Leaflet-based web map for visualizing transport networks
+- **Stop Management** - Browse and search public transport stops
+- **Route Tracking** - View bus routes and route shapes
+- **Spatial Queries**:
   - Radius Search - Find stops within a distance radius
   - Bounding Box - Query stops within geographic bounds
   - K-Nearest - Find k closest stops to a point
   - On Route - Get all stops serving a specific route
-- 📊 **Auto-Generated API Documentation** - Interactive Swagger UI and ReDoc
-- 🗄️ **PostGIS Integration** - Advanced spatial database queries
-- 📱 **Responsive Design** - Bootstrap 5 styling
+- **Auto-Generated API Documentation** - Interactive Swagger UI and ReDoc
+- **PostGIS Integration** - Advanced spatial database queries
+- **Responsive Design** - Bootstrap 5 styling
 
 ## Technology Stack
 
