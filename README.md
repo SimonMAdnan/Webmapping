@@ -86,9 +86,10 @@ DATABASES = {
 python manage.py migrate
 ```
 
-### 5.1. Unzip data
+### 5.1. Download and Unzip data
 
 Unzip the GTFS_Realtime to get the data
+Here: **https://www.transportforireland.ie/transitData/Data/GTFS_Realtime.zip**
 
 ### 6. Load GTFS Data
 
