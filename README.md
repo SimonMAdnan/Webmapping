@@ -86,6 +86,10 @@ DATABASES = {
 python manage.py migrate
 ```
 
+### 5.1. Unzip data
+
+Unzip the GTFS_Realtime to get the data
+
 ### 6. Load GTFS Data
 
 ```bash
